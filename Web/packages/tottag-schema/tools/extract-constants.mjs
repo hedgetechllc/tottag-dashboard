@@ -13,13 +13,11 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
 import {
-  FIRMWARE_ROOT, REVISIONS, CHIPS, DEFINES, PER_CHIP_DEFINES, ENUMS,
+  FIRMWARE_DIR, REVISIONS, CHIPS, DEFINES, PER_CHIP_DEFINES, ENUMS,
   STRUCTS, BLE_UUIDS, SCALE_FACTORS, RECORD_GRAMMAR,
 } from './spec.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PACKAGE_ROOT = resolve(HERE, '..');
-const SOFTWARE_ROOT = resolve(PACKAGE_ROOT, '..', '..', '..');
 const SNAPSHOT_PATH = join(HERE, 'constants.snapshot.json');
 
 class ExtractionError extends Error {}
@@ -37,12 +35,13 @@ const sourceCache = new Map();
 
 function readFirmware(relativePath) {
   if (sourceCache.has(relativePath)) return sourceCache.get(relativePath);
-  const absolute = join(SOFTWARE_ROOT, FIRMWARE_ROOT, relativePath);
+  const absolute = join(FIRMWARE_DIR, relativePath);
   let text;
   try {
     text = readFileSync(absolute, 'utf8');
   } catch (error) {
-    fail(`cannot read ${FIRMWARE_ROOT}/${relativePath}: ${error.message}`);
+    fail(`cannot read ${absolute}: ${error.message}. Check out the firmware with ` +
+      '`git submodule update --init --recursive`, or set TOTTAG_SOCITRACK to a socitrack checkout.');
   }
   // Strip block and line comments so a commented-out definition is never mistaken for a live one.
   const stripped = text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, '');

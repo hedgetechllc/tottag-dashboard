@@ -21,13 +21,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 
-import { FIRMWARE_ROOT } from '../tools/spec.mjs';
+import { FIRMWARE_DIR } from '../tools/spec.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SOFTWARE_ROOT = resolve(HERE, '..', '..', '..', '..');
-const FIRMWARE = join(SOFTWARE_ROOT, FIRMWARE_ROOT);
+const FIRMWARE = FIRMWARE_DIR;
 const HEALTH = readFileSync(join(HERE, '..', 'src', 'health.ts'), 'utf8');
 
 /** Every .c/.h under firmware/src, concatenated. Big, but this runs once. */

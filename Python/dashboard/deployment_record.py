@@ -4,7 +4,7 @@
 """Deployment records: what was scheduled, on which TotTags, and in which time zone.
 
 The browser tool writes one whenever it schedules a study, and the desktop dashboard does too, in the same format:
-the DeploymentManifest in managementweb/packages/tottag-schema/src/manifest.ts, field for field, so a record from
+the DeploymentManifest in Web/packages/tottag-schema/src/manifest.ts, field for field, so a record from
 either tool serves both. It is the only place the study's time zone is kept -- neither the TotTags nor their logs
 store it -- so the analysis helpers find the record that matches a log to show its times on the study's clock.
 

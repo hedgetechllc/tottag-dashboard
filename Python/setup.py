@@ -11,7 +11,7 @@ setuptools.setup(
    description='TotTag Management Dashboard',
    long_description=long_description,
    long_description_content_type='text/x-rst',
-   url='https://github.com/lab11/socitrack',
+   url='https://github.com/hedgetechllc/tottag-dashboard',
    package_dir={'tottag': 'dashboard'},
    packages=['tottag'],
    include_package_data=True,

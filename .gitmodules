@@ -1,0 +1,4 @@
+[submodule "external/socitrack"]
+	path = external/socitrack
+	url = https://github.com/lab11/socitrack.git
+	shallow = true

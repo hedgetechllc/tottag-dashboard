@@ -3,7 +3,7 @@ Function: This script finds all .pkl files in a specified directory, extracts th
 loads the corresponding data, and processes it using the get_daily_ranging_statistics function.
 
 Usage:
-cd SociTrack/software/management/dashboard
+cd tottag-dashboard/Python/dashboard
 python3 1_tottags_batch.py
 """
 

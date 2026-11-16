@@ -1,6 +1,7 @@
 // Declaration of every fact this package takes from the firmware, and where that fact lives.
 //
-// This file is the contract between `managementweb` and `firmware/src`. Adding a constant to the
+// This file is the contract between this package and `firmware/src` in lab11/socitrack, which this
+// repository carries as the `external/socitrack` submodule. Adding a constant to the
 // schema package without adding it here is caught by `constants.test.ts`; the firmware changing a
 // value listed here is caught by `drift.test.ts`; the firmware *renaming or deleting* something
 // listed here is caught by the extractor failing to find it, which is a hard error rather than a
@@ -21,8 +22,23 @@
 // the staleness. A broken extractor must be treated as a red build, not as a chore to defer.
 // ---------------------------------------------------------------------------------------------
 
-/** Firmware source root, relative to the repository's `software/` directory. */
+import { fileURLToPath } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+
+/** Firmware source root, relative to a socitrack checkout's `software/` directory. */
 export const FIRMWARE_ROOT = 'firmware/src';
+
+/**
+ * The socitrack checkout the firmware is read from: by default the `external/socitrack` submodule,
+ * pinned to the firmware this package was last checked against. Set TOTTAG_SOCITRACK to another
+ * checkout to check firmware changes before they are pushed and the submodule is bumped.
+ */
+export const SOCITRACK_ROOT = process.env.TOTTAG_SOCITRACK
+  ? resolve(process.env.TOTTAG_SOCITRACK)
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'external', 'socitrack');
+
+/** Absolute path of the firmware source that every check in this package reads. */
+export const FIRMWARE_DIR = join(SOCITRACK_ROOT, 'software', FIRMWARE_ROOT);
 
 /**
  * Board revisions the firmware supports, and the revision ordering used by its `#if REVISION_ID <

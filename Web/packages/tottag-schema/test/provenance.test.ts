@@ -11,14 +11,13 @@ import assert from 'node:assert/strict';
 import * as constants from '../src/constants.ts';
 import { HOST_ONLY_CONSTANTS, SNAPSHOT_BACKED } from '../src/provenance.ts';
 import { readSnapshot } from '../tools/extract-constants.mjs';
-import { FIRMWARE_ROOT } from '../tools/spec.mjs';
+import { FIRMWARE_DIR } from '../tools/spec.mjs';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 /** Every firmware source file, concatenated — for checking that a named symbol actually exists. */
 const FIRMWARE_TEXT = (() => {
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', FIRMWARE_ROOT);
+  const root = FIRMWARE_DIR;
   const parts: string[] = [];
   const walk = (directory: string) => {
     for (const entry of readdirSync(directory)) {

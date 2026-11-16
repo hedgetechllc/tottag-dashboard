@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Node (Web/.gitignore has the rest)
+node_modules/
+
+# Real deployment data. Never commit participant data to the repository.
+# Web/.gitignore re-includes the small test fixtures the tests load.
+*.ttg
+*.pkl
+*.ttrd
+
+# Editors and macOS
+*.sw*
+.idea/
+.DS_Store

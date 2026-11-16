@@ -5,7 +5,7 @@
 //   node --experimental-strip-types tools/radio-check-parity.mjs --write    write test/fixtures/radio-check-parity.json
 //
 // The scenarios live in test/radioParityFixture.ts. Rewrite the fixture after changing a rule, a threshold or a
-// message in radioCheck.ts or liveRadio.ts, then make management/dashboard/test_radio_check.py pass again.
+// message in radioCheck.ts or liveRadio.ts, then make Python/dashboard/test_radio_check.py pass again.
 
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

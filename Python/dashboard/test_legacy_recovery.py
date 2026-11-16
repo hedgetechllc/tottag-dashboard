@@ -5,7 +5,8 @@
    python3 test_legacy_recovery.py                  # runs dumps through the recovery FIRMWARE's code, once built
    python3 test_legacy_recovery.py --no-harness     # only what the Python side can check alone
 
-The harness is firmware/tests/tools/legacy_log_recovery_sim (build it with `make` there). With it, a scenario's
+The harness is socitrack's software/firmware/tests/tools/legacy_log_recovery_sim (build it with `make` there, in
+external/socitrack or any other socitrack checkout, and pass --harness if it is not the submodule). With it, a scenario's
 pages are loaded into the nandlog SPI simulator, legacy_log_recovery.c reads them out exactly as it would on a
 tag, and the harness fails the run if the firmware programmed or erased anything. Without it, the same frame
 stream is produced by a Python mirror of the firmware's encoder, which is also the only way to present what
@@ -541,8 +542,8 @@ if __name__ == '__main__':
    arguments.add_argument('--harness', help='path to legacy_log_recovery_sim (found automatically once built)')
    arguments.add_argument('--no-harness', action='store_true', help='use only the Python mirror of the encoder')
    known, rest = arguments.parse_known_args()
-   default = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'firmware', 'tests', 'tools',
-                          'legacy_log_recovery_sim', 'legacy_log_recovery_sim')
+   default = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'external', 'socitrack', 'software',
+                          'firmware', 'tests', 'tools', 'legacy_log_recovery_sim', 'legacy_log_recovery_sim')
    HARNESS = None if known.no_harness else (known.harness or (default if os.path.exists(default) else None))
    print(f'Recovery firmware harness: {HARNESS or "not built, using the Python mirror of its encoder only"}')
    unittest.main(argv=[sys.argv[0]] + rest, verbosity=2)

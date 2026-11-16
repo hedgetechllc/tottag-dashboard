@@ -12,8 +12,8 @@ Installation
 
 ``python3 -m pip install tottag``
 
-Or, from a clone of the `SociTrack repository <https://github.com/lab11/socitrack>`_, in
-``software/management``:
+Or, from a clone of the `tottag-dashboard repository <https://github.com/hedgetechllc/tottag-dashboard>`_,
+in ``Python``:
 
 ``python3 -m pip install -e .``
 
@@ -26,4 +26,5 @@ Documentation
 -------------
 
 Full documentation is at https://lab11.github.io/socitrack/ — covering device setup, scheduling a
-deployment, downloading logs, and reading the resulting data.
+deployment, downloading logs, and reading the resulting data. A browser-based equivalent of this tool,
+which needs no installation, is at https://app.tottag.net/.

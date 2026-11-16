@@ -18,7 +18,7 @@ Source for the `tottag` desktop dashboard.
 | `test_*.py` | Tests: `python3 -m unittest -q test_deployment_ids test_log_format test_radio_check test_usb_download test_legacy_recovery test_downloads test_deployment_record test_processing` |
 
 `test_radio_check.py` replays scenarios that the browser tool's schema package writes to
-`managementweb/packages/tottag-schema/test/fixtures/radio-check-parity.json`, so both tools must give
+`Web/packages/tottag-schema/test/fixtures/radio-check-parity.json`, so both tools must give
 the same verdicts for the same reasons. After changing the radio check's rules in the browser tool, run
 `npm run parity:update` in that package, then bring `radio_check.py` back into line until the test passes.
 

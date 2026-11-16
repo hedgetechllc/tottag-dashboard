@@ -5,7 +5,8 @@
 That firmware found its log at boot by pattern-matching page markers, and when the search failed it wrote a
 fresh, empty metadata page and carried on -- so a tag can report that it has no log while every page of the log
 is still on its flash. This tool works from a raw dump of the flash instead, taken by the read-only recovery
-firmware in firmware/tests/tools/legacy_log_recovery.c, and rebuilds the log from the pages themselves.
+firmware in socitrack's software/firmware/tests/tools/legacy_log_recovery.c, and rebuilds the log from the
+pages themselves.
 
    Flash the recovery firmware:   cd software/firmware/tests && make clean log_recovery          (revs O, P: USB)
                                                                make clean log_recovery_segger   (any rev: J-Link)
@@ -106,7 +107,7 @@ EARLIEST_PLAUSIBLE_START = 1500000000
 TOTTAG_USB_VID = 0x1209
 TOTTAG_USB_PID = 0x2828
 RTT_CONTROL_BLOCK_ADDRESS = '0x1005FFA0'
-DEFAULT_JLINK_DEVICE = 'AMA4B2KK-KBR'      # as software/firmware/Jtag.mk flashes with
+DEFAULT_JLINK_DEVICE = 'AMA4B2KK-KBR'      # as socitrack's software/firmware/Jtag.mk flashes with
 IDLE_TIMEOUT_S = 60
 
 

@@ -57,15 +57,15 @@ import {
 } from '../src/constants.ts';
 import { encodeExperimentDetails } from '../src/deployment.ts';
 import { parseExperimentDetails } from '../src/log.ts';
+import { FIRMWARE_DIR } from '../tools/spec.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DASHBOARD = resolve(HERE, '..', '..', '..', '..', 'management', 'dashboard');
+const DASHBOARD = resolve(HERE, '..', '..', '..', '..', 'Python', 'dashboard');
 const TOTTAG_PY = readFileSync(join(DASHBOARD, 'tottag.py'), 'utf8');
 const PARSE_PY = readFileSync(join(DASHBOARD, 'parse.py'), 'utf8');
 const FORMAT_PY = readFileSync(join(DASHBOARD, 'tottag_format.py'), 'utf8');
 const PROCESSING_PY = readFileSync(join(DASHBOARD, 'processing.py'), 'utf8');
-const FIRMWARE = resolve(HERE, '..', '..', '..', '..', 'firmware', 'src');
-const BLUETOOTH_C = readFileSync(join(FIRMWARE, 'peripherals', 'src', 'bluetooth.c'), 'utf8');
+const BLUETOOTH_C = readFileSync(join(FIRMWARE_DIR, 'peripherals', 'src', 'bluetooth.c'), 'utf8');
 
 /** Reads a module-level `NAME = <int>` assignment from a Python source file. */
 function pythonInt(source: string, name: string): number {

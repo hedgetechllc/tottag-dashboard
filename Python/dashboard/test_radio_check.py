@@ -4,7 +4,7 @@
 
    python3 test_radio_check.py
 
-The fixture (managementweb/packages/tottag-schema/test/fixtures/radio-check-parity.json) holds scenarios and the web
+The fixture (Web/packages/tottag-schema/test/fixtures/radio-check-parity.json) holds scenarios and the web
 tool's answers to them: fleets built to fail in one known way per device, and a live test as the raw Bluetooth payloads
 four devices would stream. Each is replayed here through the Python port, which must reach the same verdicts, for the
 same reasons, in the same words. When the web tool's rules change, `npm run parity:update` in that package rewrites
@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import radio_check
 import tottag_format
 
-FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'managementweb', 'packages', 'tottag-schema',
+FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'Web', 'packages', 'tottag-schema',
                        'test', 'fixtures', 'radio-check-parity.json')
 CAMEL_EXCEPTIONS = {'coverage_a_to_b': 'coverageAtoB', 'coverage_b_to_a': 'coverageBtoA'}
 

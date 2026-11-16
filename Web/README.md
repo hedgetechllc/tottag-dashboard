@@ -1,14 +1,13 @@
 # TotTag Web
 
 Browser-based deployment configuration and data processing for TotTag, alongside the Python
-desktop tool in `software/management`. Both are maintained: they read the same `.ttg` logs and
+desktop tool in [`Python/`](../Python/). Both are maintained: they read the same `.ttg` logs and
 speak the same BLE maintenance protocol, so a device does not care which one configured it.
 
-**People using it** open [lab11.github.io/socitrack/app](https://lab11.github.io/socitrack/app/) and
-need nothing else. The documentation workflow (`.github/workflows/docs.yml`) runs `npm run ci` here on
-every push to `master` that touches this directory and publishes `app/dist` beside the documentation,
-so the published tool is always the last version that passed the whole gate. Everything below is for
-working on the tool itself.
+**People using it** open [app.tottag.net](https://app.tottag.net/) and need nothing else. The Pages
+workflow (`.github/workflows/pages.yml`) runs `npm run ci` here on every push to `main` and publishes
+`app/dist` to that address, so the published tool is always the last version that passed the whole
+gate. Everything below is for working on the tool itself.
 
 Where the two must agree on a constant, `packages/tottag-schema/test/python-tool-parity.test.ts`
 asserts it against the Python source directly. That test is the reason a change to one tool's
@@ -58,6 +57,24 @@ npm run drift:update   regenerate the snapshot after an intentional firmware cha
 npm test               node:test, no test framework dependency
 npm run open-items -w @tottag/schema
                        print every unresolved assumption and what would settle it
+```
+
+**The firmware.** The drift check and several tests read the firmware's C source, which lives in
+[lab11/socitrack](https://github.com/lab11/socitrack). This repository carries it as the
+`external/socitrack` submodule, pinned to the firmware the snapshot was last checked against, so clone
+with `--recursive` (or run `git submodule update --init --recursive` in an existing clone). To check a
+firmware change before it is pushed, point `TOTTAG_SOCITRACK` at your own socitrack checkout:
+
+```
+TOTTAG_SOCITRACK=~/path/to/socitrack npm run ci
+```
+
+Once the firmware change is pushed, move the submodule to it and commit the result together with any
+regenerated snapshot:
+
+```
+git submodule update --remote --recursive external/socitrack
+npm run drift:update -w @tottag/schema
 ```
 
 **Browser support.** Reading logs and planning a deployment work anywhere. Reaching a tag needs Web
