@@ -2,8 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from tottag import *
-import tottag_format
+try:
+   from .tottag import *
+   from . import tottag_format
+except ImportError:
+   from tottag import *
+   import tottag_format
 
 
 def process_tottag_data(data, experiment_start_time=None):
@@ -55,7 +59,7 @@ if __name__ == "__main__":
 
    # The start time is only needed for legacy files; page-framed files embed their own experiment details
    if len(sys.argv) not in (2, 3):
-      print('Usage: ./parse.py [LOGFILE] [EXPERIMENT_START_TIME]')
+      print('Usage: python3 -m tottag.parse LOGFILE [EXPERIMENT_START_TIME]   (or ./parse.py in the source)')
       print('       EXPERIMENT_START_TIME is required for legacy .ttg files and ignored for newer ones')
       sys.exit(0)
 

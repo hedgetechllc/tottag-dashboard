@@ -444,7 +444,7 @@ def convert_ttg_file(path):
       blob = data[tottag_format.V2_STREAM_HEADER.size:tottag_format.V2_STREAM_HEADER.size + details_length]
    if not blob or len(blob) < deployment_record.DETAILS.size:
       raise ValueError(f'{path} carries no deployment details, as a legacy log does not, so the labels in the .pkl a download '
-                       'wrote cannot be recovered from it. parse.py reads it with device IDs in place of labels.')
+                       'wrote cannot be recovered from it. `python3 -m tottag.parse` reads it with device IDs in place of labels.')
    details = unpack_experiment_details(blob[:deployment_record.DETAILS.size])
 
    # The file name says which of the TotTags in the deployment wrote the log, as the download named it
@@ -1993,11 +1993,8 @@ class TotTagGUI(tk.Frame):
 
 
 # TOP-LEVEL FUNCTIONALITY ---------------------------------------------------------------------------------------------
+# The installed `tottag` command calls main() directly, so the command line is parsed here rather than under __main__
 def main(mode_switch_visibility=False):
-   gui = TotTagGUI(mode_switch_visibility=mode_switch_visibility)
-   gui.mainloop()
-
-if __name__ == "__main__":
    parser = argparse.ArgumentParser(description="Parser for command line options")
    parser.add_argument('-s', action='store_true', help='With the -s flag, the mode switch will be visible')
    parser.add_argument('--debug', action='store_true', help='Report expected, benign download diagnostics that are hidden by default')
@@ -2013,4 +2010,8 @@ if __name__ == "__main__":
             failed = True
             print('ERROR:', error)
       sys.exit(1 if failed else 0)
-   main(mode_switch_visibility = args.s)
+   gui = TotTagGUI(mode_switch_visibility=mode_switch_visibility or args.s)
+   gui.mainloop()
+
+if __name__ == "__main__":
+   main()
