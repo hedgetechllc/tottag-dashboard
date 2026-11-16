@@ -52,12 +52,16 @@ class OldFirmware:
       self.data_end = (g['blocks'] - (reserved or g['reserved'])) * g['ppb']
       self.max_payload = self.page_size - 4
       self.bad = set(bad_blocks)
+      # On the Winbond part the old firmware matched its hardware LUT on the masked LBA alone, so the LUT's empty
+      # (all-zero) entries made it step over block 0 as though it were bad. Every tag had empty entries unless all
+      # twenty were in use, so a log that wraps on this part always resumes in block 1
+      self.skipped = self.bad | ({0} if g['chip'] == lr.CHIP_W25N01GW else set())
       self.pages, self.sessions, self.records, self.page_spans = {}, [], [], {}
       self.cache, self.current = bytearray(), None
 
    def advance(self, page):
       page = (page + 1) % self.data_end
-      while page // self.ppb in self.bad:
+      while page // self.ppb in self.skipped:
          page = ((page + self.ppb) % self.data_end) & ~(self.ppb - 1)
       return page
 
@@ -214,7 +218,8 @@ def python_dump(part, pages, uncorrectable=(), lut=None):
                              bytes(TAG_UID), b'\0\0\0', 0, b'python mirror'.ljust(32, b'\0'))
    stream = bytearray(frame(lr.FRAME_INFO, 0, info))
    if g['chip'] == lr.CHIP_W25N01GW:
-      stream += frame(lr.FRAME_LUT, 0, lut if lut is not None else b'\xff' * 80)
+      # By default an empty LUT, which the part (and the simulator) reports as every entry zero
+      stream += frame(lr.FRAME_LUT, 0, lut if lut is not None else bytes(4 * lr.W25N_LUT_ENTRIES))
    sent = 0
    for page in sorted(set(pages) | set(uncorrectable)):
       data = pages.get(page, b'').ljust(g['page_size'], b'\xff')
@@ -265,7 +270,8 @@ class CleanLogs(unittest.TestCase):
       writer = OldFirmware('W25N01GW')
       writer.schedule(978, details)                  # six blocks from the end of the data region
       generate(writer, hours=10)
-      self.assertTrue(any(p < writer.meta_page for p in writer.pages), 'scenario must wrap')
+      used_blocks = {p // 64 for p in writer.pages}
+      self.assertTrue(1 in used_blocks and 0 not in used_blocks, 'scenario must wrap, past block 0')
       recovery, _ = recover(dump_of('W25N01GW', writer.pages))
       wrong, missing = compare(recovery.records, reference(writer, labels=labels_for(details)))
       self.assertEqual((wrong, missing), ([], []))
@@ -513,7 +519,7 @@ class Mirror(unittest.TestCase):
          self.assertEqual(sorted(firmware.pages), sorted(mirror.pages))
          for number, page in firmware.pages.items():
             self.assertEqual((page.data, page.uncorrectable, page.reads), (mirror.pages[number].data, False, 1))
-         self.assertEqual((firmware.lut is None), (mirror.lut is None))
+         self.assertEqual(firmware.lut, mirror.lut)
          self.assertEqual({k: v for k, v in firmware.end.items() if k != 'elapsed_ms'},
                           {k: v for k, v in mirror.end.items() if k != 'elapsed_ms'})
 
