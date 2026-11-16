@@ -25,7 +25,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
-/** Firmware source root, relative to a socitrack checkout's `software/` directory. */
+/** Firmware source root, relative to the root of a socitrack checkout. */
 export const FIRMWARE_ROOT = 'firmware/src';
 
 /**
@@ -38,7 +38,7 @@ export const SOCITRACK_ROOT = process.env.TOTTAG_SOCITRACK
   : resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'external', 'socitrack');
 
 /** Absolute path of the firmware source that every check in this package reads. */
-export const FIRMWARE_DIR = join(SOCITRACK_ROOT, 'software', FIRMWARE_ROOT);
+export const FIRMWARE_DIR = join(SOCITRACK_ROOT, FIRMWARE_ROOT);
 
 /**
  * Board revisions the firmware supports, and the revision ordering used by its `#if REVISION_ID <

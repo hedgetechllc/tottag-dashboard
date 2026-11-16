@@ -5,11 +5,11 @@
 That firmware found its log at boot by pattern-matching page markers, and when the search failed it wrote a
 fresh, empty metadata page and carried on -- so a tag can report that it has no log while every page of the log
 is still on its flash. This tool works from a raw dump of the flash instead, taken by the read-only recovery
-firmware in socitrack's software/firmware/tests/tools/legacy_log_recovery.c, and rebuilds the log from the
+firmware in socitrack's firmware/tests/tools/legacy_log_recovery.c, and rebuilds the log from the
 pages themselves.
 
-   Flash the recovery firmware:   cd software/firmware/tests && make clean log_recovery          (revs O, P: USB)
-                                                               make clean log_recovery_segger   (any rev: J-Link)
+   Flash the recovery firmware:   cd firmware/tests && make clean log_recovery          (revs O, P: USB)
+                                                      make clean log_recovery_segger   (any rev: J-Link)
    Take a dump and recover it:    python3 legacy_recovery.py usb -o OUTDIR
                                   python3 legacy_recovery.py rtt -o OUTDIR
    Re-analyse an existing dump:   python3 legacy_recovery.py recover OUTDIR/<uid>_<time>.ttrd -o OUTDIR
@@ -107,7 +107,7 @@ EARLIEST_PLAUSIBLE_START = 1500000000
 TOTTAG_USB_VID = 0x1209
 TOTTAG_USB_PID = 0x2828
 RTT_CONTROL_BLOCK_ADDRESS = '0x1005FFA0'
-DEFAULT_JLINK_DEVICE = 'AMA4B2KK-KBR'      # as socitrack's software/firmware/Jtag.mk flashes with
+DEFAULT_JLINK_DEVICE = 'AMA4B2KK-KBR'      # as socitrack's firmware/Jtag.mk flashes with
 IDLE_TIMEOUT_S = 60
 
 
