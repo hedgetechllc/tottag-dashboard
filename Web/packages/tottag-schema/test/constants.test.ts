@@ -211,9 +211,9 @@ test('v2 magics decode to the expected ASCII', () => {
   // These were prose literals until the format shipped. They are extracted now, so the assertion is
   // that the little-endian uint32 in the firmware still spells what the format document says.
   assert.equal(V2_STREAM_MAGIC, 'TTS1');
-  assert.equal(V2_DATA_PAGE_MAGIC, 'TTP1');
-  assert.equal(V2_DATA_PAGE_MAGIC_FRAMED, 'TTP2');
-  assert.equal(V2_METADATA_PAGE_MAGIC, 'TTM2');  // nandlog v1.0 bumped the metadata page format
+  assert.equal(V2_DATA_PAGE_MAGIC, 'TTP3');      // nandlog v1.1's on-flash format 2 retagged its pages and slots
+  assert.equal(V2_DATA_PAGE_MAGIC_FRAMED, 'TTP4');
+  assert.equal(V2_METADATA_PAGE_MAGIC, 'TTM3');
   assert.equal(V2_METADATA_RING_BLOCKS, 8);
 });
 

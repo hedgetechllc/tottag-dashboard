@@ -120,7 +120,7 @@ export const DEFINES = [
   { name: 'NANDLOG_PAGE_PLACEMENT_ATTEMPTS', file: 'external/nandlog/nandlog_conf.h', note: 'Blocks one page write may relocate through before the log declares the part unwritable.' },
   { name: 'NANDLOG_MAX_EPOCH_DETAILS_BYTES', file: 'external/nandlog/nandlog_conf.h', note: 'Largest caller-defined metadata blob. experiment_details_t must fit.' },
   { name: 'NANDLOG_TIMESTAMP_TOLERANCE_MS', file: 'external/nandlog/nandlog_conf.h', note: 'A backward timestamp step no larger than this is clamped forward rather than committing the page. 250 ms separates writer disagreement from a moved time base (§12.28 A).' },
-  { name: 'NANDLOG_RECORD_FRAMING', file: 'external/nandlog/nandlog_conf.h', note: 'ON. Every record carries its own uint16 length, pages carry TTP2, and a reader can step over a type it has never heard of. Turned on when STORAGE_TYPE_DIAGNOSTICS was added, because adding a record type is exactly the change framing makes safe -- an unframed reader that stops at an unknown type loses the rest of every page containing one, which is how this package went stale against types 7 and 8.' },
+  { name: 'NANDLOG_RECORD_FRAMING', file: 'external/nandlog/nandlog_conf.h', note: 'ON. Every record carries its own uint16 length, pages carry TTP4, and a reader can step over a type it has never heard of. Turned on when STORAGE_TYPE_DIAGNOSTICS was added, because adding a record type is exactly the change framing makes safe -- an unframed reader that stops at an unknown type loses the rest of every page containing one, which is how this package went stale against types 7 and 8.' },
   { name: 'STORAGE_DIAGNOSTIC_NUM_POOLS', file: 'app/app_config.h', note: 'WSF buffer pools reported in a diagnostics record. Fixed at the five ble_task.c declares.' },
   { name: 'STORAGE_DIAGNOSTIC_NUM_STACKS', file: 'app/app_config.h', note: 'Stack headroom entries in a diagnostics record: each watchdog task in watchdog_task_t order, then the timer service.' },
   { name: 'STORAGE_DIAGNOSTIC_FLAG_TEMPCO_AVAILABLE', file: 'tasks/storage_records.h', note: 'Diagnostics status bit: this chip\'s factory trims support TempCo.' },
@@ -165,9 +165,9 @@ export const DEFINES = [
   // unreleased. The format shipped, so they are extracted facts now and drift-checked like anything
   // else. Magics are little-endian uint32 in the firmware; the extractor keeps them numeric and
   // constants.ts renders the ASCII.
-  { name: 'NANDLOG_PAGE_MAGIC', file: 'external/nandlog/nandlog.h', note: "'TTP1' little-endian: a data page whose records are opaque to the log." },
-  { name: 'NANDLOG_PAGE_MAGIC_FRAMED', file: 'external/nandlog/nandlog.h', note: "'TTP2' little-endian: a data page whose records carry their own lengths." },
-  { name: 'NANDLOG_META_MAGIC', file: 'external/nandlog/nandlog.h', note: "'TTM1' little-endian: a metadata page in the epoch ring." },
+  { name: 'NANDLOG_PAGE_MAGIC', file: 'external/nandlog/nandlog.h', note: "'TTP3' little-endian: a data page whose records are opaque to the log." },
+  { name: 'NANDLOG_PAGE_MAGIC_FRAMED', file: 'external/nandlog/nandlog.h', note: "'TTP4' little-endian: a data page whose records carry their own lengths." },
+  { name: 'NANDLOG_META_MAGIC', file: 'external/nandlog/nandlog.h', note: "'TTM3' little-endian: a metadata page in the epoch ring." },
   { name: 'NANDLOG_STREAM_MAGIC', file: 'external/nandlog/nandlog.h', note: "'TTS1' little-endian: the first four bytes of an offload stream, and the v1/v2 discriminator." },
   { name: 'NANDLOG_NO_TIMESTAMP', file: 'external/nandlog/nandlog.h', note: 'Sentinel in first_timestamp/last_timestamp for a page holding no timestamped record.' },
 

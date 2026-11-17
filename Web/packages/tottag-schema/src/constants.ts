@@ -158,7 +158,7 @@ export const {
   /**
    * Whether each record carries its own length.
    *
-   * **1 as of the diagnostics record.** Pages carry NANDLOG_PAGE_MAGIC_FRAMED ('TTP2'), every record
+   * **1 as of the diagnostics record.** Pages carry NANDLOG_PAGE_MAGIC_FRAMED ('TTP4'), every record
    * is prefixed with a uint16 length, and a reader can step over a type it has never heard of
    * instead of losing the rest of the page. It was turned on precisely because adding
    * STORAGE_TYPE_DIAGNOSTICS is the change framing exists to make safe: under the unframed format
@@ -613,11 +613,11 @@ const asciiFromLittleEndian = (value: number): string =>
 
 /** `'TTS1'`. The first four bytes of an offload stream, and the v1/v2 discriminator. */
 export const V2_STREAM_MAGIC = asciiFromLittleEndian(snapshot.defines.NANDLOG_STREAM_MAGIC);
-/** `'TTP1'`. A data page whose records are opaque to the log. */
+/** `'TTP3'`. A data page whose records are opaque to the log. */
 export const V2_DATA_PAGE_MAGIC = asciiFromLittleEndian(snapshot.defines.NANDLOG_PAGE_MAGIC);
-/** `'TTP2'`. A data page whose records each carry their own length. */
+/** `'TTP4'`. A data page whose records each carry their own length. */
 export const V2_DATA_PAGE_MAGIC_FRAMED = asciiFromLittleEndian(snapshot.defines.NANDLOG_PAGE_MAGIC_FRAMED);
-/** `'TTM1'`. A metadata page in the epoch ring. */
+/** `'TTM3'`. A metadata page in the epoch ring. */
 export const V2_METADATA_PAGE_MAGIC = asciiFromLittleEndian(snapshot.defines.NANDLOG_META_MAGIC);
 
 /** Stream format version: 1 when records are unframed, 2 when each carries its own length. */
