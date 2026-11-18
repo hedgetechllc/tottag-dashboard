@@ -17,7 +17,7 @@ import type { TagSnapshot } from '../ports/tagTransport.ts';
 /** 1 January 2020. A clock reading earlier than this has never been set. */
 const EARLIEST_SET_CLOCK = 1_577_836_800;
 /** A clock within this many seconds of this computer's is right, given the time a read takes. */
-export const CLOCK_TOLERANCE_S = 3;
+export const CLOCK_TOLERANCE_S = 5;
 
 export interface StoredDeployment {
   readonly startTime: number;

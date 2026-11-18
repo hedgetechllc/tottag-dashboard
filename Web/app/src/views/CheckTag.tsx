@@ -3,11 +3,12 @@ import { formatEui, tagName } from '@tottag/schema';
 import { webBluetoothTransport } from '../adapters/webBluetooth.ts';
 import { webSerialTransport } from '../adapters/webSerial.ts';
 import { ConfirmButton } from '../components/ConfirmButton.tsx';
+import { LiveRanges, useLiveRanges } from '../components/LiveRanges.tsx';
 import { TagDetails } from '../components/TagFacts.tsx';
 import { assessSnapshot, mayHoldData, storedState } from '../features/tagStatus.ts';
-import { describeKnownTag, routeFor, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
+import { describeKnownTag, knownTagTransport, routeFor, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
 import { useDownloaded, useTagChecks } from '../features/useTagRecords.ts';
-import { errorText, unlistedNote, unreachableMessage, useReachableTags, withTag } from '../lib/tagAccess.ts';
+import { errorText, transportFor, unlistedNote, unreachableMessage, useReachableTags, withTag } from '../lib/tagAccess.ts';
 import { useNow } from '../lib/useNow.ts';
 import type { TagConnection, TagTransport } from '../ports/tagTransport.ts';
 
@@ -34,6 +35,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const liveRanges = useLiveRanges();
 
   const bluetoothReason = webBluetoothTransport.unavailableReason();
   const serialReason = webSerialTransport.unavailableReason();
@@ -46,6 +48,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
   const pickNew = useCallback(async (transport: TagTransport) => {
     setError(null);
     setMessage(null);
+    void liveRanges.stop();
     setBusy('Reading the tag…');
     try {
       const connection = await transport.requestDevice();
@@ -62,7 +65,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
     } finally {
       setBusy(null);
     }
-  }, [read, remember]);
+  }, [liveRanges.stop, read, remember]);
 
   const run = useCallback(async (eui: readonly number[], doing: string, action: (connection: TagConnection) => Promise<void>) => {
     setError(null);
@@ -80,9 +83,35 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
   }, [knownTags]);
 
   const pickKnown = useCallback((tag: KnownTag) => {
+    void liveRanges.stop();
     setSelected([...tag.eui]);
     void run(tag.eui, 'Reading the tag…', read);
-  }, [read, run]);
+  }, [liveRanges.stop, read, run]);
+
+  /** Hold a connection open and show the distances the tag measures as it measures them. */
+  const showLiveRanges = useCallback(async (eui: readonly number[]) => {
+    setError(null);
+    setMessage(null);
+    const route = routeFor(knownTags, eui);
+    if (!route) { setError(unreachableMessage(eui, route)); return; }
+    setBusy('Connecting to the tag…');
+    try {
+      const connection = await transportFor(route).connect(route.handle);
+      if (!connection) { setError(unreachableMessage(eui, route)); return; }
+      if (!connection.liveRadio) {
+        await connection.disconnect();
+        setError(knownTagTransport(route) === 'serial'
+          ? 'Live ranges come over Bluetooth. Pick this tag with "Pick a tag" first.'
+          : "This tag's firmware is too old to send live ranges. Updating its firmware will fix this.");
+        return;
+      }
+      await liveRanges.start(connection);
+    } catch (caught) {
+      setError(errorText(caught));
+    } finally {
+      setBusy(null);
+    }
+  }, [knownTags, liveRanges.start]);
 
   const eui = selected ? Uint8Array.from(selected) : null;
   const check = eui ? checks.get(eui) : null;
@@ -142,13 +171,22 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
               <p className="empty">Not read yet.</p>
             )}
             <div className="actions">
-              <button type="button" className="button button--quiet" disabled={!!busy}
+              {/* Each of these connects, acts and disconnects, which would end a stream of live ranges */}
+              <button type="button" className="button button--quiet" disabled={!!busy || !!liveRanges.live}
+                title={liveRanges.live ? 'Stop the live ranges first' : undefined}
                 onClick={() => void run(selected!, 'Reading the tag…', read)}>Check again</button>
-              <button type="button" className="button button--quiet" disabled={!!busy}
+              <button type="button" className="button button--quiet" disabled={!!busy || !!liveRanges.live}
+                title={liveRanges.live ? 'Stop the live ranges first' : undefined}
                 onClick={() => void run(selected!, 'Sounding the buzzer…', async (connection) => {
                   await connection.locate(BUZZ_SECONDS);
                   setMessage(`${tagName(eui)} is buzzing for ${BUZZ_SECONDS} seconds.`);
                 })}>Buzz</button>
+              {liveRanges.live ? (
+                <button type="button" className="button button--quiet" onClick={() => void liveRanges.stop()}>Stop live ranges</button>
+              ) : (
+                <button type="button" className="button button--quiet" disabled={!!busy}
+                  onClick={() => void showLiveRanges(selected!)}>Show live ranges</button>
+              )}
               {!inDeployment(eui) && (
                 <button type="button" className="button button--quiet" disabled={!!busy}
                   onClick={() => { onAddToDeployment(eui); setMessage(`${tagName(eui)} was added to the deployment being set up.`); }}>
@@ -156,6 +194,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
                 </button>
               )}
             </div>
+            {liveRanges.live && <LiveRanges live={liveRanges.live} stored={stored} />}
             {canCancel && (
               <div className="danger-zone">
                 <h3 className="panel__subtitle">Cancel its deployment</h3>
@@ -166,7 +205,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
                 <ConfirmButton
                   label="Cancel this tag's deployment…"
                   danger
-                  disabled={!!busy}
+                  disabled={!!busy || !!liveRanges.live}
                   confirmLabel="Cancel the deployment"
                   question={
                     <>

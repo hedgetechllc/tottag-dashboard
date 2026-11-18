@@ -264,7 +264,8 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
         } catch (caught) {
           result = { outcome: 'failed', detail: errorText(caught) };
         }
-        results.push({ eui: device.eui, label: device.label, ...result });
+        // The label the tag was told, which for one left blank is the default `02:31`, not the empty field
+        results.push({ eui: device.eui, label: config.devices[index]!.label, ...result });
         set(index, { state: result.outcome, detail: result.detail ?? undefined });
       }
 

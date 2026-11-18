@@ -17,10 +17,10 @@ export function describeStored(stored: StoredDeployment | null, now: number, tim
 }
 
 export function describeClock(check: TagCheck): { text: string; ok: boolean } {
-  if (check.clockSet === null) return { text: 'Clock not read', ok: true };
-  if (!check.clockSet) return { text: 'Clock not set yet — writing a deployment sets it', ok: true };
+  if (check.clockSet === null) return { text: 'Clock could not be read', ok: true };
+  if (!check.clockSet) return { text: 'Clock is not yet set — writing a deployment sets it', ok: true };
   const offset = Math.abs(check.clockOffsetSeconds ?? 0);
-  if (offset <= CLOCK_TOLERANCE_S) return { text: 'Clock is right', ok: true };
+  if (offset <= CLOCK_TOLERANCE_S) return { text: 'Clock matches the current time', ok: true };
   const amount = offset < 120 ? `${Math.round(offset)} seconds` : `${Math.round(offset / 60)} minutes`;
   return { text: `Clock is ${amount} ${check.clockOffsetSeconds! > 0 ? 'fast' : 'slow'} — writing a deployment sets it`, ok: false };
 }
@@ -43,6 +43,9 @@ export function TagPills({ check, now, timezone }: { check: TagCheck | null; now
           title={low ? `A tag will not start recording below ${volts(MIN_RECORDING_BATTERY_MV)}` : 'Battery when last checked'}>
           Battery {volts(check.batteryMv)}{low ? ' — low' : ''}
         </span>
+      )}
+      {check.firmware && (
+        <span className="pill pill--quiet">Firmware {check.firmware.replace(/^Commit\s+/i, '')}</span>
       )}
       <span className="pill pill--quiet">{describeStored(check.stored, now, timezone)}</span>
       <span className="pill pill--quiet" title={formatDateTime(check.checkedAt, timezone)}>Checked {ago(now - check.checkedAt)}</span>
