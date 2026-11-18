@@ -32,9 +32,13 @@ export interface LiveDevice {
 
 export interface LiveTestState {
   readonly phase: 'setup' | 'starting' | 'running' | 'finished';
-  /** Unix seconds. */
+  /** Unix seconds. Null while the devices are still being reached, before the test's clock starts. */
   readonly startTime: number | null;
   readonly endTime: number | null;
+  /** Unix seconds: when the test ended, on time or when stopped. */
+  readonly finishedAt: number | null;
+  /** Whether it was stopped before its end time. */
+  readonly stoppedEarly: boolean;
   readonly devices: readonly LiveDevice[];
 }
 
@@ -76,6 +80,8 @@ export class LiveRadioTest {
   private phase: LiveTestState['phase'] = 'setup';
   private startTime: number | null = null;
   private endTime: number | null = null;
+  private finishedAt: number | null = null;
+  private stoppedEarly = false;
   private euis: Uint8Array[] = [];
 
   constructor(deps: LiveTestDependencies) {
@@ -102,6 +108,8 @@ export class LiveRadioTest {
       phase: this.phase,
       startTime: this.startTime,
       endTime: this.endTime,
+      finishedAt: this.finishedAt,
+      stoppedEarly: this.stoppedEarly,
       devices: this.entries.map((entry) => ({
         handle: entry.handle, eui: entry.eui, uid: entry.uid, label: entry.label, status: entry.status,
         message: entry.message, stats: entry.previous?.stats ?? null, roundsPerSecond: entry.roundsPerSecond,
@@ -144,12 +152,34 @@ export class LiveRadioTest {
   async start(durationSeconds: number): Promise<void> {
     if (this.phase !== 'setup' || this.entries.length < 2) return;
     this.phase = 'starting';
+    this.changed();
+
+    // Devices from an earlier test were let go when it ended, so reach them again before the test's clock starts
+    await Promise.all(this.entries.filter((entry) => !entry.connection).map(async (entry) => {
+      entry.status = 'starting';
+      this.changed();
+      let connection: TagConnection | null = null;
+      try { connection = await this.deps.reconnect(entry.handle); } catch { connection = null; }
+      if (this.phase !== 'starting') {
+        // Stopped while this one was being reached
+        void connection?.disconnect();
+      } else if (connection?.liveRadio) {
+        entry.connection = connection;
+      } else {
+        void connection?.disconnect();
+        this.fail(entry, 'Could not reach this tag to start the test. Make sure it is on its charger and close to this computer.');
+      }
+    }));
+    if (this.phase !== 'starting') return;
+
     this.startTime = Math.floor(this.deps.now() / 1000);
     this.endTime = this.startTime + durationSeconds;
     this.euis = this.entries.map((entry) => entry.eui);
     this.changed();
 
     for (const entry of this.entries) {
+      if (this.phase !== 'starting') return;
+      if (entry.status === 'failed') continue;
       const link = entry.connection?.liveRadio;
       if (!entry.connection || !link) {
         this.fail(entry, 'Not connected when the test started.');
@@ -165,6 +195,7 @@ export class LiveRadioTest {
         this.fail(entry, error instanceof Error ? error.message : String(error));
         continue;
       }
+      if (this.phase !== 'starting') return;   // stopped while this one was being started
       entry.recorder = new LiveRadioRecorder({
         startTime: this.startTime,
         deploymentUids: this.entries.map((other) => other.uid),
@@ -174,6 +205,7 @@ export class LiveRadioTest {
       this.letGo(entry, 'restarting');
       this.reconnectLater(entry, RESTART_SETTLE_MS);
     }
+    if (this.phase !== 'starting') return;
     this.phase = 'running';
     this.changed();
     this.deps.schedule(() => this.finish(), (this.endTime - this.startTime) * 1000 + this.deps.pollMs);
@@ -184,10 +216,33 @@ export class LiveRadioTest {
     if (this.phase !== 'running' && this.phase !== 'starting') return;
     const connected = this.entries.filter((entry) => entry.connection?.liveRadio);
     this.phase = 'finished';
+    this.finishedAt = Math.floor(this.deps.now() / 1000);
+    this.stoppedEarly = true;
     for (const entry of connected) {
       try { await entry.connection!.liveRadio!.stopRadioTest(); } catch { /* restarting anyway, or out of reach */ }
     }
     for (const entry of this.entries) this.letGo(entry, entry.status === 'failed' ? 'failed' : 'finished');
+    this.changed();
+  }
+
+  /**
+   * Set up another test with the same devices, once this one is over. Each is reached again when the next test
+   * starts: they are restarting back to normal now, and a tag accepts only two connections.
+   */
+  again(): void {
+    if (this.phase !== 'finished') return;
+    this.phase = 'setup';
+    this.startTime = this.endTime = this.finishedAt = null;
+    this.stoppedEarly = false;
+    this.euis = [];
+    for (const entry of this.entries) {
+      this.letGo(entry, 'ready');
+      entry.connection = null;
+      entry.message = null;
+      entry.recorder = null;
+      entry.previous = null;
+      entry.roundsPerSecond = null;
+    }
     this.changed();
   }
 
@@ -328,6 +383,7 @@ export class LiveRadioTest {
   private finish(): void {
     if (this.phase !== 'running') return;
     this.phase = 'finished';
+    this.finishedAt = this.endTime;
     for (const entry of this.entries) this.letGo(entry, entry.status === 'failed' ? 'failed' : 'finished');
     this.changed();
   }

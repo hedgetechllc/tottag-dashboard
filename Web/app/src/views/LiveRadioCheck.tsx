@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { RADIO_TEST_MAX_SECONDS, tagName } from '@tottag/schema';
 import { webBluetoothTransport } from '../adapters/webBluetooth.ts';
 import { LinkMatrix, PositionsPanel, RadioCard, VERDICT_ORDER, usePositions } from '../components/RadioResults.tsx';
-import { LiveRadioTest, type LiveDevice, type LiveDeviceStatus } from '../features/liveRadioTest.ts';
+import { LiveRadioTest, type LiveDevice, type LiveDeviceStatus, type LiveTestState } from '../features/liveRadioTest.ts';
 import { formatPercent, runRadioCheck } from '../features/radioCheck.ts';
 import { useKnownTags } from '../features/useKnownTags.ts';
+import { useReachableTags } from '../lib/tagAccess.ts';
+import { useNow } from '../lib/useNow.ts';
 
 const MIN_MINUTES = 2;
 const MAX_MINUTES = Math.min(10, Math.floor(RADIO_TEST_MAX_SECONDS / 60));
@@ -32,6 +34,7 @@ const STATUS_CLASS: Record<LiveDeviceStatus, string> = {
 export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => string | undefined }) {
   const unavailable = webBluetoothTransport.unavailableReason();
   const { tags: knownTags } = useKnownTags();
+  const reachableTags = useReachableTags(knownTags).filter((known) => (known.transport ?? 'bluetooth') === 'bluetooth');
   const testRef = useRef<LiveRadioTest | null>(null);
   if (!testRef.current) testRef.current = new LiveRadioTest({ reconnect: (handle) => webBluetoothTransport.connect(handle) });
   const test = testRef.current;
@@ -71,7 +74,7 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
     setBusy(true);
     const missing: string[] = [];
     try {
-      for (const tag of knownTags.filter((known) => (known.transport ?? 'bluetooth') === 'bluetooth')) {
+      for (const tag of reachableTags) {
         if (state.devices.some((device) => device.handle === tag.handle)) continue;
         const connection = await webBluetoothTransport.connect(tag.handle);
         if (!connection) { missing.push(tagName(tag.eui)); continue; }
@@ -95,48 +98,47 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
   const positions = usePositions(state.devices.length ? 'tottag.radioCheck.positions.live' : null);
   const result = useMemo(() => (deployment ? runRadioCheck(deployment, positions.positions) : null), [deployment, positions.positions]);
   const judged = result && result.windowStartMs !== null && result.windowEndMs !== null && result.windowEndMs > result.windowStartMs;
-  const secondsLeft = state.endTime !== null && state.phase === 'running' ? Math.max(0, state.endTime - Math.floor(Date.now() / 1000)) : null;
   const truncated = state.devices.some((device) => device.truncated > 0);
+  const finished = state.phase === 'finished';
 
   if (unavailable) return <p className="banner banner--warn">{unavailable}</p>;
 
   return (
     <>
-      <section className="panel">
-        <h2 className="panel__title">Check tags' radios live</h2>
-        <p className="panel__note">
-          Runs the tags in a short radio test and reads their distances and receive counts over Bluetooth as it goes,
-          to find one with a weak receiver, a damaged antenna, or a distance calibration that is off. Nothing is
-          recorded, a tag's deployment is left as it was, and every tag goes back to normal when the test ends.
-        </p>
-        <ol className="steps">
-          <li>Put the tags on their chargers, or leave them running a deployment, so they can be reached.</li>
-          <li>Add each tag. Tags this browser has seen before can be added all at once.</li>
-          <li>Start the test. Each tag restarts into it and begins measuring, on its charger or off it.</li>
-          <li>Set them where they can all see each other, at least half a meter apart. The test keeps running as they move.</li>
-          <li>Verdicts appear within the first minute and update every 15 seconds; they firm up once every tag has a minute of data.</li>
-        </ol>
-        <div className="actions">
-          <button type="button" className="button" disabled={state.phase !== 'setup' || busy} onClick={() => void addFromChooser()}>Add a tag</button>
-          <button type="button" className="button button--quiet" disabled={state.phase !== 'setup' || busy || !knownTags.length || !webBluetoothTransport.reconnectAcrossReloadsSupported()}
-            onClick={() => void addKnown()}>Add tags this browser knows</button>
-          <label className="inline-field">
-            Run for
-            <input className="rtable__input" type="number" inputMode="numeric" min={MIN_MINUTES} max={MAX_MINUTES} step={1}
-              value={minutesText} disabled={state.phase !== 'setup'} aria-label="Minutes to run the test for"
-              onChange={(event) => setMinutesText(event.target.value)} /> minutes
-          </label>
-          {state.phase === 'setup' && (
+      {state.phase !== 'setup' ? (
+        <TestStatus state={state} onStop={() => void test.stop()} onAgain={() => { setError(null); test.again(); }} />
+      ) : (
+        <section className="panel">
+          <h2 className="panel__title">Check tags' radios live</h2>
+          <p className="panel__note">
+            Runs the tags in a short radio test and reads their distances and receive counts over Bluetooth as it goes,
+            to find one with a weak receiver, a damaged antenna, or a distance calibration that is off. Nothing is
+            recorded, a tag's deployment is left as it was, and every tag goes back to normal when the test ends.
+          </p>
+          <ol className="steps">
+            <li>Put the tags on their chargers, or leave them running a deployment, so they can be reached.</li>
+            <li>Add each tag. Tags this browser has seen before can be added all at once.</li>
+            <li>Start the test. Each tag restarts into it and begins measuring, on its charger or off it.</li>
+            <li>Set them where they can all see each other, at least half a meter apart. The test keeps running as they move.</li>
+            <li>Verdicts appear within the first minute and update every 15 seconds; they firm up once every tag has a minute of data.</li>
+          </ol>
+          <div className="actions">
+            <button type="button" className="button" disabled={busy} onClick={() => void addFromChooser()}>Add a tag</button>
+            <button type="button" className="button button--quiet" disabled={busy || !reachableTags.length}
+              onClick={() => void addKnown()}>Add tags this browser knows</button>
+            <label className="inline-field">
+              Run for
+              <input className="rtable__input" type="number" inputMode="numeric" min={MIN_MINUTES} max={MAX_MINUTES} step={1}
+                value={minutesText} aria-label="Minutes to run the test for"
+                onChange={(event) => setMinutesText(event.target.value)} /> minutes
+            </label>
             <button type="button" className="button" disabled={state.devices.length < 2 || busy || !minutesValid} onClick={() => void start()}>Start test</button>
-          )}
-          {(state.phase === 'starting' || state.phase === 'running') && (
-            <button type="button" className="button button--quiet" onClick={() => void test.stop()}>Stop test</button>
-          )}
-        </div>
-        {error && <p className="banner banner--crit">{error}</p>}
-      </section>
+          </div>
+          {error && <p className="banner banner--crit">{error}</p>}
+        </section>
+      )}
 
-      {state.devices.length > 0 && <DeviceTable devices={state.devices} secondsLeft={secondsLeft} finished={state.phase === 'finished'} onRemove={state.phase === 'setup' ? (handle) => test.remove(handle) : null} />}
+      {state.devices.length > 0 && <DeviceTable devices={state.devices} onRemove={state.phase === 'setup' ? (handle) => test.remove(handle) : null} />}
 
       {truncated && (
         <p className="banner banner--warn">
@@ -145,19 +147,32 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
         </p>
       )}
 
-      {deployment && result && (judged ? (
+      {deployment && result && (
         <>
-          {result.notes.map((note) => <p key={note} className="banner banner--warn">{note}</p>)}
-          <div className="cards">
-            {[...result.devices]
-              .sort((a, b) => VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict] || a.label.localeCompare(b.label))
-              .map((device) => <RadioCard key={device.uid} device={device} name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
+          <div className="results-head">
+            <h2 className="results-head__title">{finished ? 'Final results' : 'Results so far'}</h2>
+            <p className="results-head__note">
+              {!judged
+                ? (finished ? 'The test ended before every tag had 15 seconds of data, so there is nothing to judge.' : 'Verdicts appear once every tag has 15 seconds of data.')
+                : finished
+                ? 'The test is over, so these will not change.'
+                : `Up to ${minutesSeconds(Math.round(result.windowEndMs! / 1000))} into the test. They update every 15 seconds, and can change until the test ends.`}
+            </p>
           </div>
-          <LinkMatrix devices={deployment.devices} links={result.links} />
+          {judged && (
+            <>
+              {result.notes.map((note) => <p key={note} className="banner banner--warn">{note}</p>)}
+              <div className="cards">
+                {[...result.devices]
+                  .sort((a, b) => VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict] || a.label.localeCompare(b.label))
+                  .map((device) => <RadioCard key={device.uid} device={device} provisional={!finished}
+                    name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
+              </div>
+              <LinkMatrix devices={deployment.devices} links={result.links} />
+            </>
+          )}
         </>
-      ) : (
-        <p className="panel__note">Verdicts appear once every tag has 15 seconds of data.</p>
-      ))}
+      )}
 
       {state.devices.length > 0 && (
         <PositionsPanel devices={state.devices.map((device) => ({ uid: device.uid, label: device.label, name: tagName(device.eui) }))} positions={positions} />
@@ -166,18 +181,63 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
   );
 }
 
-function DeviceTable({ devices, secondsLeft, finished, onRemove }: {
+/** Whole seconds as "1:05". */
+const minutesSeconds = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+
+/**
+ * Where the test is, pinned at the top of the page: what it is doing, how long is left, and the one thing to do next.
+ *
+ * The results below look the same whether the test is still running or over, so this has to say which, from
+ * anywhere on the page.
+ */
+function TestStatus({ state, onStop, onAgain }: { state: LiveTestState; onStop: () => void; onAgain: () => void }) {
+  const now = useNow(1000);
+  const { phase, startTime, endTime, finishedAt, stoppedEarly } = state;
+  const finished = phase === 'finished';
+  const duration = startTime !== null && endTime !== null ? endTime - startTime : null;
+  const left = !finished && endTime !== null ? Math.max(0, Math.ceil(endTime - now)) : null;
+  const progress = finished ? 1 : startTime !== null && duration ? Math.min(1, Math.max(0, (now - startTime) / duration)) : null;
+  const endedAt = finishedAt === null ? '' : new Date(finishedAt * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  const title = finished ? (stoppedEarly ? 'Test stopped' : 'Test finished')
+    : startTime === null ? 'Reaching the tags…'
+    : phase === 'starting' ? 'Starting the test on each tag…'
+    : left === 0 ? 'Finishing…'
+    : 'Test running';
+  const detail = !finished ? 'The results below are provisional until the test ends.'
+    : startTime === null ? 'Stopped before the test began.'
+    : `${stoppedEarly ? 'Stopped' : 'Ended'} at ${endedAt}. Each tag restarts back to what it was doing. The results below are final.`;
+
+  return (
+    <section className={`panel run-status${finished ? ' run-status--done' : ''}`}>
+      <div className="run-status__row">
+        <div className="run-status__text">
+          <h2 className="panel__title" aria-live="polite">{title}</h2>
+          <p className="panel__note">{detail}</p>
+        </div>
+        {left !== null && duration !== null && (
+          <p className="run-status__clock"><strong>{minutesSeconds(left)}</strong> left of {minutesSeconds(duration)}</p>
+        )}
+        {finished
+          ? <button type="button" className="button" onClick={onAgain}>Run another test</button>
+          : <button type="button" className="button button--quiet" onClick={onStop}>Stop test</button>}
+      </div>
+      <div className="transfer__bar" role="progressbar" aria-label="Test progress" aria-valuemin={0} aria-valuemax={100}
+        aria-valuenow={progress === null ? undefined : Math.round(progress * 100)}>
+        <div className={`transfer__fill${progress === null ? ' transfer__fill--busy' : ''}`}
+          style={progress === null ? undefined : { width: `${progress * 100}%` }} />
+      </div>
+    </section>
+  );
+}
+
+function DeviceTable({ devices, onRemove }: {
   devices: readonly LiveDevice[];
-  secondsLeft: number | null;
-  finished: boolean;
   onRemove: ((handle: string) => void) | null;
 }) {
   return (
     <section className="panel">
-      <h2 className="panel__title">
-        Tags{secondsLeft !== null && <> · {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')} left</>}
-        {finished && <> · test over, each tag restarts back to normal</>}
-      </h2>
+      <h2 className="panel__title">Tags</h2>
       <table className="rtable">
         <thead>
           <tr><th>Tag</th><th>Status</th><th>Role</th><th>Rounds/s</th><th>Receives failed</th><th>By antenna</th><th /></tr>

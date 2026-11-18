@@ -21,9 +21,13 @@
   flex-direction: column;
   gap: 28px;
 }
-.brand { display: flex; align-items: center; gap: 10px; padding: 0 6px; }
-.brand__name { display: block; font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: -0.01em; line-height: 1.2; }
-.brand__sub { display: block; font-size: var(--text-xs); color: var(--ink-3); }
+.brand { --brand-name: 24px; --brand-sub-leading: 1.55; display: flex; align-items: center; gap: 10px; padding: 0 6px; }
+/* From the top of the name's capitals to a pixel past the baseline of the line under it (about 1.18 of that line's
+   font size below its top), so the round bottom looks as if it sits on that line */
+.brand__mark { flex: none; align-self: flex-start; height: calc(var(--brand-name) + var(--text-xs) * 1.18); width: auto; aspect-ratio: 52 / 40; }
+.brand__name { display: block; color: var(--ink); line-height: 0; }
+.brand__name svg { display: block; height: var(--brand-name); width: auto; }
+.brand__sub { display: block; font-size: var(--text-xs); line-height: var(--brand-sub-leading); color: var(--ink-3); }
 
 .rail__links { display: flex; flex-direction: column; gap: 4px; }
 .rail__link {
@@ -66,7 +70,8 @@
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 12px 32px;
+  /* Lined up with the content below it, which is centred once the window is wider than --content-max */
+  padding: 12px max(32px, calc((100% - var(--content-max)) / 2 + 32px));
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
@@ -74,7 +79,7 @@
 .topbar__title { font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: -0.01em; }
 .topbar__actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-.content { padding: 28px 32px 56px; width: 100%; max-width: 1680px; }
+.content { padding: 28px 32px 56px; width: 100%; max-width: var(--content-max); margin-inline: auto; }
 .content > div > * + * { margin-top: 20px; }
 
 @media (max-width: 860px) {
@@ -547,6 +552,23 @@
 .matrix__cell--fair { background: var(--warn-wash); color: var(--warn); }
 .matrix__cell--poor { background: var(--crit-wash); color: var(--crit); }
 .matrix__self { background: var(--sunken); border-radius: var(--radius-sm); }
+
+/* The live radio check's progress, pinned under the top bar so whether the test is still running is never off screen */
+/* The extra shadow paints the page's own background into the gap above it, so nothing scrolls by in that gap */
+.run-status { position: sticky; top: calc(var(--topbar-height) + 12px); z-index: 4; gap: 12px; box-shadow: 0 -12px 0 var(--paper), var(--shadow); }
+@media (max-width: 860px) { .run-status { top: 12px; } }
+.run-status__row { display: flex; align-items: center; gap: 12px 24px; flex-wrap: wrap; }
+.run-status__text { flex: 1 1 280px; display: flex; flex-direction: column; gap: 4px; }
+.run-status__clock { font-size: var(--text-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.run-status__clock strong { font-size: var(--text-lg); color: var(--ink); }
+.run-status--done { border-color: var(--ok-line); }
+.run-status--done .transfer__fill { background: var(--ok); }
+
+.results-head { display: flex; flex-direction: column; gap: 4px; }
+.results-head__title { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.results-head__note { color: var(--ink-2); font-size: var(--text-sm); }
+/* A verdict that can still change while the test runs */
+.card--provisional { border-top-style: dashed; }
 
 /* --- Review: one deployment at a time -------------------------------------------------------------- */
 

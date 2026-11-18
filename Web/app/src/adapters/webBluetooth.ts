@@ -49,7 +49,8 @@ const STREAM_START_TIMEOUT_MS = 600_000;
 const bluetooth = (): Bluetooth | undefined => (navigator as Navigator & { bluetooth?: Bluetooth }).bluetooth;
 
 /**
- * Devices the chooser has handed us during this page session, by their opaque id.
+ * Devices this page can reach without the chooser, by their opaque id: those the chooser has handed
+ * us during this page session, and those `getDevices()` says this origin still holds a grant for.
  *
  * A `BluetoothDevice` from `requestDevice()` stays usable for as long as the page lives, so
  * reconnecting to one costs nothing. Without this cache every reconnect went through
@@ -58,6 +59,33 @@ const bluetooth = (): Bluetooth | undefined => (navigator as Navigator & { bluet
  * came back as "could not reach that tag", which is both wrong and impossible to act on.
  */
 const sessionDevices = new Map<string, BluetoothDevice>();
+
+/**
+ * Whether a tag can be reached without the chooser changes in two ways: when `getDevices()` answers
+ * with the devices this origin still holds grants for, and when one is picked.
+ *
+ * Asking `getDevices()` is the only way to know, because the API existing says nothing about which
+ * tags it will return. Where a browser has no `getDevices()`, nothing picked outlives a reload; where
+ * it has one, a grant can still lapse or be revoked. So a tag offered for a one-click connect after a
+ * reload has to be one that `getDevices()` actually returned.
+ */
+const reachabilityListeners = new Set<() => void>();
+let grantsAsked = false;
+
+const reachabilityChanged = () => {
+  for (const listener of [...reachabilityListeners]) listener();
+};
+
+function askForGrants(): void {
+  if (grantsAsked) return;
+  grantsAsked = true;
+  const api = bluetooth() as (Bluetooth & { getDevices?: () => Promise<BluetoothDevice[]> }) | undefined;
+  if (!api?.getDevices) return;
+  api.getDevices().then((devices) => {
+    for (const device of devices) if (!sessionDevices.has(device.id)) sessionDevices.set(device.id, device);
+    if (devices.length) reachabilityChanged();
+  }, () => { /* no grants to offer, so every tag is picked again */ });
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -486,13 +514,15 @@ export const webBluetoothTransport: TagTransport = {
     return 'This browser cannot talk to tags over Bluetooth. Chrome, Edge or Opera on a computer can; Safari and Firefox do not support it.';
   },
 
-  reconnectAcrossReloadsSupported() {
-    const api = bluetooth() as (Bluetooth & { getDevices?: unknown }) | undefined;
-    return typeof api?.getDevices === 'function';
+  canReachWithoutChooser(handle: string) {
+    askForGrants();
+    return sessionDevices.has(handle);
   },
 
-  canReachWithoutChooser(handle: string) {
-    return sessionDevices.has(handle) || webBluetoothTransport.reconnectAcrossReloadsSupported();
+  onReachabilityChange(listener: () => void) {
+    reachabilityListeners.add(listener);
+    askForGrants();
+    return () => { reachabilityListeners.delete(listener); };
   },
 
   async requestDevice(): Promise<TagConnection | null> {
@@ -507,7 +537,9 @@ export const webBluetoothTransport: TagTransport = {
         filters: [{ namePrefix: 'TotTag' }],
         optionalServices: [LIVE_STATS, MAINTENANCE, DEVICE_INFO_SERVICE],
       });
+      const known = sessionDevices.has(device.id);
       sessionDevices.set(device.id, device);
+      if (!known) reachabilityChanged();
       return await openDevice(device);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'NotFoundError') return null;   // dismissed
@@ -522,9 +554,10 @@ export const webBluetoothTransport: TagTransport = {
       const api = bluetooth() as (Bluetooth & { getDevices?: () => Promise<BluetoothDevice[]> }) | undefined;
       if (!api?.getDevices) return null;
       device = (await api.getDevices()).find((candidate) => candidate.id === handle);
-      if (device) sessionDevices.set(handle, device);
+      if (!device) return null;
+      sessionDevices.set(handle, device);
+      reachabilityChanged();
     }
-    if (!device) return null;
     try {
       return await openDevice(device);
     } catch {

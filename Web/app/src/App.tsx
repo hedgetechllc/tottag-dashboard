@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { webBluetoothTransport } from './adapters/webBluetooth.ts';
 import { webSerialTransport } from './adapters/webSerial.ts';
 import { ConfirmButton } from './components/ConfirmButton.tsx';
-import { BrandMark, CalendarIcon, DownloadIcon, LockIcon, SearchIcon, SignalIcon } from './components/Icons.tsx';
+import { BrandMark, BrandWordmark, CalendarIcon, DownloadIcon, LockIcon, SearchIcon, SignalIcon } from './components/Icons.tsx';
 import { useDeploymentDraft } from './features/useDeploymentDraft.ts';
 import { useLogs } from './lib/useLogs.ts';
 import { CheckTag } from './views/CheckTag.tsx';
@@ -56,9 +56,9 @@ export function App() {
     <div className="shell">
       <nav className="rail" aria-label="Sections">
         <div className="brand">
-          <BrandMark />
+          <BrandMark className="brand__mark" />
           <div>
-            <span className="brand__name">TotTag</span>
+            <span className="brand__name"><BrandWordmark /></span>
             <span className="brand__sub">Deployment tools</span>
           </div>
         </div>

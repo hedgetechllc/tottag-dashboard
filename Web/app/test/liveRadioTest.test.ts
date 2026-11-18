@@ -36,6 +36,8 @@ class FakeDevice {
   inTest = false;
   waiting = false;
   refuse = false;
+  /** Out of reach: neither on its charger nor close by. */
+  away = false;
   bootedAt = 0;
   starts: Array<[number, number, number]> = [];
   stops = 0;
@@ -112,7 +114,7 @@ function setup(...devices: FakeDevice[]) {
   const session = new LiveRadioTest({
     reconnect: async (handle) => {
       const device = devices.find((b) => `h${b.uid}` === handle);
-      return device && !device.connected && (clock.now - device.bootedAt) >= 0 ? device.connection() : null;
+      return device && !device.connected && !device.away && (clock.now - device.bootedAt) >= 0 ? device.connection() : null;
     },
     now: () => clock.now,
     schedule: clock.schedule,
@@ -183,6 +185,8 @@ test('stopping ends the test on every device it can reach, and the test ends by 
   await session.stop();
   assert.deepEqual(devices.map((b) => b.stops), [1, 1]);
   assert.equal(session.state().phase, 'finished');
+  assert.equal(session.state().stoppedEarly, true);
+  assert.equal(session.state().finishedAt, Math.floor(clock.now / 1000));
 
   const other = [new FakeDevice(0x02, clock), new FakeDevice(0x0b, clock)];
   const timed = setup(...other).session;
@@ -190,6 +194,57 @@ test('stopping ends the test on every device it can reach, and the test ends by 
   await clock.advance(70_000);
   assert.equal(timed.state().phase, 'finished');
   assert.deepEqual(timed.state().devices.map((b) => b.status), ['finished', 'finished']);
+  assert.equal(timed.state().stoppedEarly, false);
+  assert.equal(timed.state().finishedAt, timed.state().endTime);
+});
+
+/** Run one test to its end, with each tag restarting back to normal afterwards as the firmware does. */
+async function runToEnd(session: LiveRadioTest, clock: Clock, devices: FakeDevice[]) {
+  await session.start(60);
+  await clock.advance(70_000);
+  for (const device of devices) device.inTest = false;
+}
+
+test('another test runs with the same tags, each reached again as it starts', async () => {
+  const clock = new Clock();
+  const devices = [new FakeDevice(0x02, clock), new FakeDevice(0x0b, clock)];
+  const { session } = setup(...devices);
+  await runToEnd(session, clock, devices);
+  const first = session.state();
+
+  session.again();
+  const ready = session.state();
+  assert.equal(ready.phase, 'setup');
+  assert.equal(ready.startTime, null);
+  assert.equal(ready.finishedAt, null);
+  assert.deepEqual(ready.devices.map((b) => [b.uid, b.status, b.stats]), [[0x02, 'ready', null], [0x0b, 'ready', null]]);
+  assert.equal(session.deployment(), null, 'nothing from the last test is judged again');
+
+  await clock.advance(5_000);
+  await session.start(60);
+  const second = session.state();
+  assert.equal(second.phase, 'running');
+  assert.ok(second.startTime! > first.startTime!);
+  for (const device of devices) assert.equal(device.starts.length, 2);
+  await clock.advance(20_000);
+  assert.deepEqual(session.state().devices.map((b) => b.status), ['running', 'running']);
+});
+
+test('a tag that cannot be reached for another test is reported, and the others carry on', async () => {
+  const clock = new Clock();
+  const devices = [new FakeDevice(0x02, clock), new FakeDevice(0x0b, clock), new FakeDevice(0x3e, clock)];
+  const { session } = setup(...devices);
+  await runToEnd(session, clock, devices);
+  session.again();
+  devices[1]!.away = true;
+
+  await session.start(60);
+  const byUid = new Map(session.state().devices.map((b) => [b.uid, b]));
+  assert.equal(byUid.get(0x0b)!.status, 'failed');
+  assert.match(byUid.get(0x0b)!.message!, /Could not reach/);
+  assert.equal(devices[1]!.starts.length, 1, 'not sent the second test');
+  await clock.advance(20_000);
+  assert.equal(session.state().devices.find((b) => b.uid === 0x3e)!.status, 'running');
 });
 
 test('a device without the live radio link is turned away with a reason', () => {

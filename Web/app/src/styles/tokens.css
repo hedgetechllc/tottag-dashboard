@@ -26,8 +26,9 @@
   --primary-ink: #22548c;
   --on-primary: #ffffff;
 
+  /* The logo's two circles: the child (apricot) and the caregiver (blue) */
   --brand-a: #f4a259;
-  --brand-b: #5b9bd5;
+  --brand-b: #2f6db3;
 
   --ok: #2b7a4b;
   --ok-wash: #e5f4ea;
@@ -67,6 +68,8 @@
 
   --rail-width: 248px;
   --topbar-height: 64px;
+  /* Widest the page content grows; past it, the content sits centred with the top bar lined up over it */
+  --content-max: 1680px;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -104,16 +104,18 @@ export function PositionsPanel({ devices, positions }: {
   );
 }
 
-export function RadioCard({ device, name }: { device: RadioCheckDevice; name: string }) {
+/** One tag's verdict. Provisional while a live test is still running, when the verdict can still change. */
+export function RadioCard({ device, name, provisional = false }: { device: RadioCheckDevice; name: string; provisional?: boolean }) {
   const antennas = device.antennaFailureRates.map((rate, i) => `${i + 1}: ${formatPercent(rate)}`).join('  ');
+  const verdict = `${VERDICT_LABEL[device.verdict]}${provisional && device.verdict !== 'missing' ? ' so far' : ''}`;
   return (
-    <article className={`card card--${VERDICT_CLASS[device.verdict]}`}>
+    <article className={`card card--${VERDICT_CLASS[device.verdict]}${provisional ? ' card--provisional' : ''}`}>
       <header className="card__head">
         <div>
           <h3 className="card__title">{device.label}</h3>
           {device.label !== name && <p className="card__sub">{name}</p>}
         </div>
-        <span className={`badge badge--${VERDICT_CLASS[device.verdict]}`}>{VERDICT_LABEL[device.verdict]}</span>
+        <span className={`badge badge--${VERDICT_CLASS[device.verdict]}`}>{verdict}</span>
       </header>
       {device.verdict !== 'missing' && (
         <dl className="stats">

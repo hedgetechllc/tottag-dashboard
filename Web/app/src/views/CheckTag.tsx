@@ -7,7 +7,7 @@ import { TagDetails } from '../components/TagFacts.tsx';
 import { assessSnapshot, mayHoldData, storedState } from '../features/tagStatus.ts';
 import { describeKnownTag, routeFor, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
 import { useDownloaded, useTagChecks } from '../features/useTagRecords.ts';
-import { errorText, unreachableMessage, withTag } from '../lib/tagAccess.ts';
+import { errorText, unlistedNote, unreachableMessage, useReachableTags, withTag } from '../lib/tagAccess.ts';
 import { useNow } from '../lib/useNow.ts';
 import type { TagConnection, TagTransport } from '../ports/tagTransport.ts';
 
@@ -25,6 +25,8 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
   inDeployment: (eui: Uint8Array) => boolean;
 }) {
   const { tags: knownTags, remember } = useKnownTags();
+  const reachableTags = useReachableTags(knownTags);
+  const unlisted = unlistedNote(knownTags.length, reachableTags.length);
   const checks = useTagChecks();
   const { downloadedAt } = useDownloaded();
   const now = useNow(15_000);
@@ -103,11 +105,11 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
             <button type="button" className="button button--quiet" disabled={!!serialReason || !!busy} title={serialReason ?? undefined}
               onClick={() => void pickNew(webSerialTransport)}>Pick a tag plugged in by USB</button>
           </div>
-          {knownTags.length > 0 && (
+          {reachableTags.length > 0 && (
             <>
               <h3 className="panel__subtitle">Tags this browser knows</h3>
               <ul className="chips">
-                {knownTags.map((tag) => {
+                {reachableTags.map((tag) => {
                   const active = selected && formatEui(Uint8Array.from(tag.eui)) === formatEui(Uint8Array.from(selected));
                   return (
                     <li key={tag.handle} className={`chip${active ? ' chip--on' : ''}`}>
@@ -120,6 +122,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
               </ul>
             </>
           )}
+          {unlisted && <p className="panel__note">{unlisted}</p>}
           {busy && <p className="banner banner--info" role="status">{busy}</p>}
           {error && <p className="banner banner--crit" role="alert">{error}</p>}
           {message && <p className="banner banner--info" role="status">{message}</p>}

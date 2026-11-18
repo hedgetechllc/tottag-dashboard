@@ -13,7 +13,7 @@ import { assessSnapshot, batteryLow, replaceDecision, storedFromDetails, type Re
 import type { DraftApi } from '../features/useDeploymentDraft.ts';
 import { describeKnownTag, routeFor, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
 import { useDownloaded, useLastRecord, useTagChecks } from '../features/useTagRecords.ts';
-import { errorText, reachableWithoutChooser, transportFor, unreachableMessage, withTag } from '../lib/tagAccess.ts';
+import { errorText, reachableWithoutChooser, transportFor, unlistedNote, unreachableMessage, useReachableTags, withTag } from '../lib/tagAccess.ts';
 import { useNow } from '../lib/useNow.ts';
 import type { TagTransport } from '../ports/tagTransport.ts';
 
@@ -48,6 +48,9 @@ interface Notice { readonly tone: 'info' | 'error'; readonly text: string }
 export function Deploy({ draftApi }: { draftApi: DraftApi }) {
   const { draft, generation, update, addDevice, updateDevice, removeDevice } = draftApi;
   const { tags: knownTags, remember, forget } = useKnownTags();
+  // Also what re-renders the rows below when a tag becomes reachable again
+  const reachableTags = useReachableTags(knownTags);
+  const unlisted = unlistedNote(knownTags.length, reachableTags.length);
   const checks = useTagChecks();
   const { downloadedAt } = useDownloaded();
   const { record, setRecord, markSaved } = useLastRecord();
@@ -363,17 +366,17 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
               disabled={!!serialReason || writing} title={serialReason ?? 'For a tag plugged into this computer with a USB cable'}>
               Add a tag plugged in by USB
             </button>
-            {knownTags.length > 0 && (
+            {reachableTags.length > 0 && (
               <button type="button" className="button button--quiet" aria-expanded={showKnown}
                 onClick={() => setShowKnown((open) => !open)} disabled={writing}>
-                {showKnown ? 'Hide tags this browser knows' : `Add a tag this browser knows (${knownTags.length})`}
+                {showKnown ? 'Hide tags this browser knows' : `Add a tag this browser knows (${reachableTags.length})`}
               </button>
             )}
           </div>
 
-          {showKnown && (
+          {showKnown && reachableTags.length > 0 && (
             <ul className="chips">
-              {knownTags.map((tag) => {
+              {reachableTags.map((tag) => {
                 const already = draft.devices.some((device) => sameEui(device.eui, tag.eui));
                 return (
                   <li key={tag.handle} className={`chip${already ? ' chip--on' : ''}`}>
@@ -388,6 +391,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
               })}
             </ul>
           )}
+          {unlisted && <p className="panel__note">{unlisted}</p>}
 
           {notice && <p className={`banner banner--${notice.tone === 'error' ? 'crit' : 'info'}`} role="status">{notice.text}</p>}
 

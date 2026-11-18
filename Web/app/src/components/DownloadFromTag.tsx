@@ -5,6 +5,7 @@ import { parseLogAsync, releaseLogs } from '../lib/parseAsync.ts';
 import { webBluetoothTransport } from '../adapters/webBluetooth.ts';
 import { webSerialTransport } from '../adapters/webSerial.ts';
 import { describeKnownTag, knownTagTransport, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
+import { transportFor, unlistedNote, unreachableMessage, useReachableTags } from '../lib/tagAccess.ts';
 import type { DownloadProgress, TagConnection, TagTransport } from '../ports/tagTransport.ts';
 import type { LoadedLog } from '../ports/logSource.ts';
 
@@ -25,6 +26,8 @@ interface Props {
  */
 export function DownloadFromTag({ onDownloaded, busy }: Props) {
   const { tags: knownTags, remember } = useKnownTags();
+  const reachableTags = useReachableTags(knownTags);
+  const unlisted = unlistedNote(knownTags.length, reachableTags.length);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +52,7 @@ export function DownloadFromTag({ onDownloaded, busy }: Props) {
   const serialReason = webSerialTransport.unavailableReason();
 
   const run = useCallback(
-    async (transport: TagTransport, open: () => Promise<TagConnection | null>, label: string) => {
+    async (open: () => Promise<TagConnection | null>, unreachable: string | null, label: string) => {
       setError(null);
       setStatus(null);
       setProgress(null);
@@ -57,14 +60,8 @@ export function DownloadFromTag({ onDownloaded, busy }: Props) {
       try {
         connection = await open();
         if (!connection) {
-          // Distinguish the reasons, because they need different actions from the user.
-          setError(
-            transport.id === 'serial'
-              ? 'Could not reach that tag. Plug it into this computer with its USB cable, then try again.'
-              : webBluetoothTransport.reconnectAcrossReloadsSupported()
-              ? 'Could not reach that tag. Make sure it is on its charger and close to this computer, then try again.'
-              : 'After a reload, this browser needs you to pick the tag again. Use "Download from a tag" and pick it from the list.',
-          );
+          // A dismissed chooser needs nothing said; a known tag that did not answer says what to do about it
+          setError(unreachable);
           return;
         }
         let bytes = await connection.downloadLog(null, setProgress);
@@ -151,18 +148,15 @@ export function DownloadFromTag({ onDownloaded, busy }: Props) {
     // Use the connection the chooser just returned rather than dropping it and reconnecting. The
     // round trip through getDevices() was what produced "could not reach that tag" for a tag the
     // user had only just picked, on any Chrome where that API is still behind a flag.
-    await run(transport, async () => {
+    await run(async () => {
       const connection = await transport.requestDevice();
       if (connection) remember(connection.identity);
       return connection;
-    }, '');
+    }, null, '');
   }, [remember, run]);
 
   const fromKnown = useCallback(
-    async (tag: KnownTag) => {
-      const transport = knownTagTransport(tag) === 'serial' ? webSerialTransport : webBluetoothTransport;
-      return run(transport, () => transport.connect(tag.handle), '');
-    },
+    async (tag: KnownTag) => run(() => transportFor(tag).connect(tag.handle), unreachableMessage(tag.eui, tag), ''),
     [run],
   );
 
@@ -193,11 +187,11 @@ export function DownloadFromTag({ onDownloaded, busy }: Props) {
           Download from a tag plugged in by USB
         </button>
       </div>
-      {knownTags.length > 0 && (
+      {reachableTags.length > 0 && (
         <>
           <h3 className="panel__subtitle">Or download from a tag this browser knows</h3>
           <ul className="chips">
-            {knownTags.map((tag) => (
+            {reachableTags.map((tag) => (
               <li key={tag.handle} className="chip">
                 <button type="button" className="chip__button" onClick={() => void fromKnown(tag)}
                   disabled={busy || active || !!(knownTagTransport(tag) === 'serial' ? serialReason : reason)}>
@@ -208,6 +202,7 @@ export function DownloadFromTag({ onDownloaded, busy }: Props) {
           </ul>
         </>
       )}
+      {unlisted && <p className="panel__note">{unlisted}</p>}
 
       {progress && (
         <div className="transfer">

@@ -110,18 +110,21 @@ export interface TagTransport {
    * Reconnect to a device already granted to this origin, with no chooser.
    *
    * Devices chosen earlier IN THIS PAGE SESSION always work. Across a reload it depends on
-   * `navigator.bluetooth.getDevices()`, which several Chrome versions gate behind a flag — see
-   * `reconnectAcrossReloadsSupported()`. Returns null when the tag cannot be reached.
+   * `navigator.bluetooth.getDevices()`, which several Chrome versions gate behind a flag, and on the
+   * grant still being held — see `canReachWithoutChooser()`. Returns null when the tag cannot be reached.
    */
   connect(handle: string): Promise<TagConnection | null>;
 
-  /** Whether a tag added before a page reload can be reconnected without the chooser. */
-  reconnectAcrossReloadsSupported(): boolean;
-
   /**
    * Whether `connect(handle)` can work without the chooser: the tag was picked earlier in this page
-   * session, or the browser remembers grants across reloads. False means it has to be picked again,
-   * which a page can only ask for from a click.
+   * session, or the browser still holds a grant for it from before a reload. False means it has to be
+   * picked again, which a page can only ask for from a click.
    */
   canReachWithoutChooser(handle: string): boolean;
+
+  /**
+   * Be told when an answer from `canReachWithoutChooser` may have changed: once the browser has said
+   * which devices it still holds grants for, and whenever one is picked. Returns the unsubscribe.
+   */
+  onReachabilityChange(listener: () => void): () => void;
 }

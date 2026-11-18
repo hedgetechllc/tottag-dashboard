@@ -423,15 +423,14 @@ export const webSerialTransport: TagTransport = {
     return 'This browser cannot talk to tags over USB. Chrome, Edge or Opera on a computer can; Safari and Firefox do not support it.';
   },
 
-  reconnectAcrossReloadsSupported() {
-    return typeof serial()?.getPorts === 'function';
-  },
-
   canReachWithoutChooser(handle: string) {
     // A granted port is found again by asking each one which tag it is, so a tag plugged in is
     // always reachable without the chooser; one that is not plugged in is reported by connect().
-    return sessionPorts.has(handle) || webSerialTransport.reconnectAcrossReloadsSupported();
+    return sessionPorts.has(handle) || typeof serial()?.getPorts === 'function';
   },
+
+  // Fixed for the life of the page, by the reasoning above
+  onReachabilityChange: () => () => {},
 
   async requestDevice(): Promise<TagConnection | null> {
     const api = serial();
