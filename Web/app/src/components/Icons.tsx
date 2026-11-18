@@ -23,6 +23,10 @@ export const SignalIcon = () => (
   <svg {...base}><circle cx="12" cy="13" r="1.6" /><path d="M8.6 9.6a4.8 4.8 0 0 0 0 6.8M15.4 9.6a4.8 4.8 0 0 1 0 6.8M5.8 6.8a8.8 8.8 0 0 0 0 12.4M18.2 6.8a8.8 8.8 0 0 1 0 12.4" /></svg>
 );
 
+export const FolderIcon = () => (
+  <svg {...base} width={15} height={15}><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /></svg>
+);
+
 export const LockIcon = () => (
   <svg {...base} width={14} height={14}><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></svg>
 );

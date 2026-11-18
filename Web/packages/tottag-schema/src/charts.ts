@@ -1,8 +1,7 @@
 // One log reduced to what its charts draw. Pure.
 //
 // Runs in the worker beside the parser, over the records the page never sees. A worst-case week is
-// about 1.2 million ranging rounds, as many Bluetooth scans, and the parsed records take most of a
-// gigabyte; what leaves here is a few thousand points per chart, in typed arrays that move to the page
+// about 1.2 million ranging rounds, and the parsed records take most of a gigabyte; what leaves here is a few thousand points per chart, in typed arrays that move to the page
 // without being copied. Each reducer below says what it keeps and why.
 
 import { BATTERY_EVENT, TIME_ALIGNED_INTERVAL_S } from './constants.ts';
@@ -44,8 +43,13 @@ export interface LogCharts {
   readonly lowBattery: Float64Array;
   /** 1 while moving and 0 while still, held until the next change. */
   readonly motion: Series;
-  /** Distinct tags heard in Bluetooth scans, per minute, held for the minute. */
+  /**
+   * Distinct tags heard while looking for a network over Bluetooth, per minute, held for the minute. A
+   * tag listens only when it is not ranging, so this is sparse in a log that ranged well.
+   */
   readonly bleScan: Series;
+  /** Distinct tags it measured a distance to, per minute, held for the minute: who it was actually near. */
+  readonly rangedPeers: Series;
   /** Accelerometer, three axes, thinned. */
   readonly imu: { readonly x: Series; readonly y: Series; readonly z: Series };
   /** Chip temperature, °C, from the diagnostics records. */
@@ -90,6 +94,31 @@ export function recordingSegments(records: readonly LogRecord[], start: number, 
     else merged.push([...segment]);
   }
   return Float64Array.from(merged.flat());
+}
+
+/**
+ * `segments` with every stretch in `cut` taken out: both [from, to, …] in time order.
+ *
+ * Recording stretches are found from records alone, and a tag on its charger still writes a few (the
+ * charger's own events, and the clock anchor), so a short spell on the charger is bridged as if the
+ * tag went on recording. It does not: on its charger a tag stops recording and serves its log.
+ */
+export function withoutSpans(segments: Float64Array, cut: Float64Array): Float64Array {
+  const out: number[] = [];
+  for (let i = 0; i + 1 < segments.length; i += 2) {
+    let from = segments[i]!;
+    const to = segments[i + 1]!;
+    for (let j = 0; j + 1 < cut.length && from < to; j += 2) {
+      const cutFrom = cut[j]!;
+      const cutTo = cut[j + 1]!;
+      // A charger touched and let go at once takes nothing out
+      if (cutTo <= cutFrom || cutTo <= from || cutFrom >= to) continue;
+      if (cutFrom > from) out.push(from, cutFrom);
+      from = Math.max(from, cutTo);
+    }
+    if (from < to) out.push(from, to);
+  }
+  return Float64Array.from(out);
 }
 
 /** Which recording segment (index into pairs) holds `t`, or -1. Segments are in time order. */
@@ -190,19 +219,38 @@ export function motionSteps(records: readonly LogRecord[], start: number, record
 }
 
 /**
- * Distinct tags heard in Bluetooth scans, per minute of the deployment, held for that minute.
+ * Distinct tags heard over Bluetooth while looking for a network, per minute of the deployment, held for
+ * that minute.
  *
- * A tag scans twice a second, so a minute's scans are pooled: the count is how many different tags it
- * heard at all during the minute. A minute with no scan at all is a break, not a zero.
+ * A tag does not scan all the time. It listens only while it is not ranging: at start-up, or after it
+ * loses its network. It writes one record when it has heard someone in a half-second window, and then
+ * joins and stops listening (firmware/src/tasks/app_task_ranging.c). So a few small bars mean the
+ * tag joined at once and stayed joined; who it was near is `rangedPeersPerMinute`. A minute with no
+ * record is a break, not a zero.
  */
 export function bleScanPerMinute(records: readonly LogRecord[], start: number): Series {
+  return distinctPerMinute(records, start, (record) => (record.kind === 'bleScan' ? record.peers : null));
+}
+
+/**
+ * Distinct tags measured a distance to, per minute of the deployment, held for that minute: the
+ * continuous record of who a tag was near, where Bluetooth discovery is only a moment at start-up.
+ * A minute with no ranging round is a break, not a zero.
+ */
+export function rangedPeersPerMinute(records: readonly LogRecord[], start: number): Series {
+  return distinctPerMinute(records, start, (record) => (record.kind === 'ranges' ? record.ranges.keys() : null));
+}
+
+/** How many different tags `peersOf` names in each minute's records, as a step held for the minute. */
+function distinctPerMinute(records: readonly LogRecord[], start: number, peersOf: (record: LogRecord) => Iterable<number> | null): Series {
   const minutes = new Map<number, Set<number>>();
   for (const record of records) {
-    if (record.kind !== 'bleScan') continue;
+    const peers = peersOf(record);
+    if (!peers) continue;
     const minute = Math.floor(record.ms / 60_000);
     let heard = minutes.get(minute);
     if (!heard) minutes.set(minute, (heard = new Set()));
-    for (const peer of record.peers) heard.add(peer);
+    for (const peer of peers) heard.add(peer);
   }
   const keys = [...minutes.keys()].sort((a, b) => a - b);
   const times: number[] = [];
@@ -292,8 +340,8 @@ export function buildLogCharts(result: ParseResult): LogCharts {
     if (first === null || t < first) first = t;
     if (last === null || t > last) last = t;
   }
-  const recording = recordingSegments(records, start);
   const charging = chargingSpans(records, start, last);
+  const recording = withoutSpans(recordingSegments(records, start), charging.spans);
   return {
     start,
     first,
@@ -303,6 +351,7 @@ export function buildLogCharts(result: ParseResult): LogCharts {
     lowBattery: charging.lowBattery,
     motion: thinWhole(motionSteps(records, start, recording)),
     bleScan: thinWhole(bleScanPerMinute(records, start)),
+    rangedPeers: thinWhole(rangedPeersPerMinute(records, start)),
     imu: imuSeries(records, start),
     temperature: thinWhole(temperatureSeries(records, start)),
     recording,
@@ -312,7 +361,7 @@ export function buildLogCharts(result: ParseResult): LogCharts {
 
 /** Every typed array in a LogCharts, for handing to postMessage's transfer list. */
 export function chartBuffers(charts: LogCharts): ArrayBuffer[] {
-  const series = [charts.voltage, charts.motion, charts.bleScan, charts.imu.x, charts.imu.y, charts.imu.z, charts.temperature, charts.rangedPerMinute];
+  const series = [charts.voltage, charts.motion, charts.bleScan, charts.rangedPeers, charts.imu.x, charts.imu.y, charts.imu.z, charts.temperature, charts.rangedPerMinute];
   const arrays = [charts.charging, charts.lowBattery, charts.recording, ...series.flatMap((s) => [s.t, s.v])];
   // An empty series shares one buffer; a buffer can only be listed once, and a shared one not at all.
   const buffers = new Set<ArrayBuffer>();

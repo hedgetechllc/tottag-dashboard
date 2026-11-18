@@ -1,0 +1,7 @@
+{
+  "name": "net.tottag.helper",
+  "description": "TotTag Helper: lets the TotTag dashboard find and talk to tags over Bluetooth.",
+  "path": "@PATH@",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://@EXTENSION_ID@/"]
+}

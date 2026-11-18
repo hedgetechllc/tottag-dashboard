@@ -1,0 +1,14 @@
+Package: tottag-helper
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: HedgeTech LLC <hedgetechllc@users.noreply.github.com>
+Installed-Size: @SIZE@
+Recommends: bluez
+Section: utils
+Priority: optional
+Homepage: https://github.com/hedgetechllc/tottag-dashboard
+Description: TotTag dashboard helper for Bluetooth and USB
+ Lets the TotTag dashboard, through its browser extension, reach TotTags
+ without the browser's device chooser: it scans for tags nearby over
+ Bluetooth, so several can be picked at once, and lists the tags plugged in
+ over USB.

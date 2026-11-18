@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "TotTag Helper",
+  "version": "0.1.0",
+  "description": "Lets the TotTag dashboard find and talk to TotTags over Bluetooth and USB through the TotTag Helper program.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "minimum_chrome_version": "114",
+  "permissions": [
+    "nativeMessaging"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "externally_connectable": {
+    "matches": [
+      "https://app.tottag.net/*"
+    ]
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAySC+QkNpoL3zCQoXIO3p1pZ+bBfo/QoA1zdBn8TJCKImlQWrYtkteI0qhb7eT/crd9pSO/yUsGrvkz2pu1M5OT0+jkkC7TUMgLLY28ZwLIPaingJL7vGdFvoqw6iP7+JovENda66XMAiUCuPK0dXJpEqTRFh+6PUghd1xsYnkHRIopNvMYLAXh6DgF3XZOx+z6g7qER+ijizjHc53vLk8xddgk9MEuZivJmNUPVH3KOcltubtBTAWVcvnIiBBCGVnyNaYVGSePbKMXw+OmUSAGfhbtt6R7nbq7mo462t82rjAgpDBvOlcuwT4r/ywLRZ7tVw4BDvEdnVIPmJ09ychwIDAQAB"
+}

@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { webBluetoothTransport } from './adapters/webBluetooth.ts';
 import { webSerialTransport } from './adapters/webSerial.ts';
 import { ConfirmButton } from './components/ConfirmButton.tsx';
 import { BrandMark, BrandWordmark, CalendarIcon, DownloadIcon, LockIcon, SearchIcon, SignalIcon } from './components/Icons.tsx';
+import { TagPickerHost } from './components/TagPicker.tsx';
 import { useDeploymentDraft } from './features/useDeploymentDraft.ts';
+import { describeHelper, helper } from './lib/helper.ts';
 import { useLogs } from './lib/useLogs.ts';
 import { CheckTag } from './views/CheckTag.tsx';
 import { Deploy } from './views/Deploy.tsx';
@@ -43,6 +45,12 @@ export function App() {
     return () => window.removeEventListener('hashchange', follow);
   }, []);
 
+  // The TotTag Helper, where it is installed, finds tags without the browser's chooser
+  const helperState = useSyncExternalStore(helper.subscribe, helper.getSnapshot).state;
+  useEffect(() => { void helper.start(); }, []);
+  const helperNote = describeHelper(helperState);
+  const helperCanRetry = ['failed', 'no-bluetooth', 'not-installed', 'outdated'].includes(helperState.status);
+
   const labelFor = useCallback((eui: Uint8Array) => {
     const match = draft.devices.find((device) => device.eui.length === eui.length && device.eui.every((b, i) => b === eui[i]));
     return match?.label.trim() || undefined;
@@ -81,6 +89,12 @@ export function App() {
               ? `This browser can reach tags over ${[bluetooth && 'Bluetooth', usb && 'USB'].filter(Boolean).join(' and ')}.`
               : 'This browser cannot reach tags. Use Chrome, Edge or Opera on a computer.'}
           </p>
+          {helperNote && (
+            <p className="rail__note">
+              {helperNote}
+              {helperCanRetry && <> <button type="button" className="link" onClick={() => void helper.retry()}>Try again</button></>}
+            </p>
+          )}
         </div>
       </nav>
 
@@ -125,6 +139,7 @@ export function App() {
           </div>
         </main>
       </div>
+      <TagPickerHost />
     </div>
   );
 }

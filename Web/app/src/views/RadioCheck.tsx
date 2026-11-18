@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ImportPanel } from '../components/ImportPanel.tsx';
-import { LinkMatrix, PositionsPanel, RadioCard, VERDICT_ORDER, usePositions } from '../components/RadioResults.tsx';
+import { LinkMatrix, RadioCard, VERDICT_ORDER } from '../components/RadioResults.tsx';
 import type { DeviceReport } from '../features/deployment.ts';
 import { groupRadioDeployments, runRadioCheck } from '../features/radioCheck.ts';
 import type { LoadResult } from '../ports/logSource.ts';
@@ -45,8 +45,8 @@ function LogRadioCheck({ reports, busy, onLoaded, onOpenFolder }: Omit<Props, 'l
   const deployments = useMemo(() => groupRadioDeployments(reports), [reports]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const deployment = deployments.find((d) => d.key === selectedKey) ?? deployments[0] ?? null;
-  const positions = usePositions(deployment ? `tottag.radioCheck.positions.${deployment.key}` : null);
-  const result = useMemo(() => (deployment ? runRadioCheck(deployment, positions.positions) : null), [deployment, positions.positions]);
+  // A deployment's logs say nothing about where the tags were, so it is judged without positions
+  const result = useMemo(() => (deployment ? runRadioCheck(deployment, new Map()) : null), [deployment]);
 
   if (!deployment || !result) {
     return (
@@ -111,7 +111,6 @@ function LogRadioCheck({ reports, busy, onLoaded, onOpenFolder }: Omit<Props, 'l
         {devices.map((device) => <RadioCard key={device.uid} device={device} name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
       </div>
       <LinkMatrix devices={deployment.devices} links={result.links} />
-      <PositionsPanel devices={deployment.devices} positions={positions} />
     </>
   );
 }

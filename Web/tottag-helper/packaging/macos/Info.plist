@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Linked into the helper's executable (the __TEXT,__info_plist section), because macOS reads why a
+  program wants Bluetooth from its Info.plist and ends one that uses Bluetooth without saying.
+
+  The installer (build-pkg.sh) also makes it the Info.plist of TotTag Helper.app, adding the
+  version, the minimum macOS and the icon, so that the Bluetooth prompt and System Settings name
+  the helper "TotTag Helper". LSUIElement keeps it out of the Dock.
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>net.tottag.helper</string>
+	<key>CFBundleName</key>
+	<string>TotTag Helper</string>
+	<key>CFBundleDisplayName</key>
+	<string>TotTag Helper</string>
+	<key>CFBundleExecutable</key>
+	<string>tottag-helper</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright (c) 2026 HedgeTech LLC. MIT License.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>The TotTag Helper finds TotTags nearby and talks to them for the TotTag dashboard.</string>
+</dict>
+</plist>

@@ -1,0 +1,138 @@
+<!doctype html>
+<!--
+  A test page for the TotTag Helper on its own, before the dashboard uses it: does a helper that
+  Chrome starts get to use Bluetooth, can it find TotTags, and can it connect to one and read it.
+  Served from localhost, which the extension's externally_connectable allows.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TotTag Helper test</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 24px; max-width: 900px; color: #222; }
+    button { font: inherit; padding: 6px 12px; margin-right: 6px; }
+    table { border-collapse: collapse; margin: 16px 0; width: 100%; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd; font-variant-numeric: tabular-nums; }
+    #status { padding: 8px 12px; background: #f3f3f3; border-radius: 6px; }
+    #status.ok { background: #e6f4ea; }
+    #status.bad { background: #fce8e6; }
+    pre { background: #f7f7f7; padding: 12px; max-height: 320px; overflow: auto; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>TotTag Helper test</h1>
+  <p id="status">Not connected to the helper yet.</p>
+  <p>
+    <button id="hello">Connect to the helper</button>
+    <button id="scan" disabled>Scan for tags</button>
+    <button id="stop" disabled>Stop scanning</button>
+  </p>
+  <table>
+    <thead><tr><th>Name</th><th>Signal</th><th>Read</th><th>Result</th></tr></thead>
+    <tbody id="devices"></tbody>
+  </table>
+  <h2>Messages</h2>
+  <pre id="log"></pre>
+
+  <script>
+    const EXTENSION_ID = 'mdcklmmdjhaedkbclflpiehpcmofhcfn';
+    const uuid16 = (n) => `0000${n.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb`;
+    const DEVICE_INFO = uuid16(0x180a);
+    const SYSTEM_ID = uuid16(0x2a23);
+    const FIRMWARE = uuid16(0x2a26);
+
+    const $ = (id) => document.getElementById(id);
+    const log = (text) => { $('log').textContent += `${new Date().toLocaleTimeString()}  ${text}\n`; };
+    const status = (text, tone = '') => { $('status').textContent = text; $('status').className = tone; };
+    const bytes = (base64) => Uint8Array.from(atob(base64 ?? ''), (c) => c.charCodeAt(0));
+
+    let port = null;
+    let counter = 0;
+    const pending = new Map();
+    const rows = new Map();
+
+    function request(op, fields = {}) {
+      return new Promise((resolve, reject) => {
+        const id = `r${++counter}`;
+        pending.set(id, { resolve, reject });
+        port.postMessage({ id, op, ...fields });
+      });
+    }
+
+    function onMessage(message) {
+      if (message.id && pending.has(message.id)) {
+        const { resolve, reject } = pending.get(message.id);
+        pending.delete(message.id);
+        if (message.ok) resolve(message); else reject(new Error(`${message.error} (${message.code})`));
+        if (!message.ok) log(`← ${JSON.stringify(message)}`);
+        return;
+      }
+      log(`← ${JSON.stringify(message)}`);
+      if (message.event === 'device') showDevice(message);
+      if (message.event === 'helperStopped') {
+        status(message.error, 'bad');
+        port = null;
+        $('scan').disabled = $('stop').disabled = true;
+      }
+    }
+
+    function showDevice({ device, name, rssi }) {
+      let row = rows.get(device);
+      if (!row) {
+        row = document.createElement('tr');
+        row.innerHTML = '<td></td><td></td><td><button>Read its ID</button></td><td></td>';
+        row.querySelector('button').onclick = () => void readIdentity(device, row);
+        rows.set(device, row);
+        $('devices').append(row);
+      }
+      row.cells[0].textContent = name;
+      row.cells[1].textContent = `${rssi} dBm`;
+    }
+
+    async function readIdentity(device, row) {
+      const result = row.cells[3];
+      result.textContent = 'Connecting…';
+      try {
+        const started = performance.now();
+        const { connection, mtu } = await request('connect', { device, services: [DEVICE_INFO] });
+        const connected = performance.now();
+        const systemId = bytes((await request('read', { connection, service: DEVICE_INFO, characteristic: SYSTEM_ID })).data);
+        const firmware = new TextDecoder().decode(bytes((await request('read', { connection, service: DEVICE_INFO, characteristic: FIRMWARE })).data)).replace(/\0+$/, '');
+        const read = performance.now();
+        await request('disconnect', { connection });
+        // Packed by the firmware as [uid0, uid1, uid2, 0xFE, 0xFF, uid3, uid4, uid5]
+        const eui = [0, 1, 2, 5, 6, 7].map((at) => systemId[at]).reverse().map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+        result.textContent = `${eui}, ${firmware}. Connected in ${Math.round(connected - started)} ms, read in ${Math.round(read - connected)} ms (MTU ${mtu}).`;
+      } catch (error) {
+        result.textContent = `Failed: ${error.message}`;
+      }
+    }
+
+    $('hello').onclick = async () => {
+      if (!window.chrome?.runtime?.connect) {
+        status('The TotTag Helper extension is not installed in this browser, or it does not allow this page.', 'bad');
+        return;
+      }
+      port?.disconnect();
+      port = chrome.runtime.connect(EXTENSION_ID);
+      port.onMessage.addListener(onMessage);
+      port.onDisconnect.addListener(() => { status('The extension closed the connection.', 'bad'); port = null; });
+      status('Asking the helper to start Bluetooth…');
+      try {
+        const reply = await request('hello');
+        log(`← ${JSON.stringify(reply)}`);
+        if (reply.bluetooth === 'ready') {
+          status(`Helper ${reply.version} on ${reply.platform}: Bluetooth is ready.`, 'ok');
+          $('scan').disabled = $('stop').disabled = false;
+        } else {
+          status(`Helper ${reply.version} on ${reply.platform}: Bluetooth is not available: ${reply.bluetooth}`, 'bad');
+        }
+      } catch (error) {
+        status(`The helper did not answer: ${error.message}`, 'bad');
+      }
+    };
+    $('scan').onclick = () => request('scanStart', { namePrefix: 'TotTag' }).then(() => log('Scanning'), (error) => log(`Scan failed: ${error.message}`));
+    $('stop').onclick = () => request('scanStop').then(() => log('Stopped scanning'), (error) => log(`Stop failed: ${error.message}`));
+  </script>
+</body>
+</html>

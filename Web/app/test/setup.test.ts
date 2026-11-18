@@ -103,8 +103,17 @@ test('a new deployment keeps the time zone and daily hours, and nothing that bel
   assert.equal(next.useDailyTimes, true);
   assert.equal(next.devices.length, 0);
   assert.equal(next.name, '');
-  assert.deepEqual(draftProblems({ ...next, devices: family.devices }, BEFORE), []);
-  assert.equal(defaultDraft(BEFORE, 'America/Chicago').start, '2026-10-09T00:00');
+  assert.deepEqual(draftProblems({ ...next, devices: family.devices }, BEFORE).filter((problem) => problem.severity === 'error'), []);
+});
+
+test('a new deployment runs from now until 11:59 PM two weeks from today, on the study clock', () => {
+  const fresh = defaultDraft(BEFORE, 'America/Chicago');
+  assert.equal(fresh.start, '2026-10-08T10:00');
+  assert.equal(fresh.end, '2026-10-22T23:59');
+  // Across the clocks going back on November 1, still fourteen calendar days
+  assert.equal(defaultDraft(utc('2026-10-25T15:00:00Z'), 'America/Chicago').end, '2026-11-08T23:59');
+  // And across the end of a month and a year
+  assert.equal(defaultDraft(utc('2026-12-25T15:00:00Z'), 'America/Chicago').end, '2027-01-08T23:59');
 });
 
 test('a draft saved by the previous version comes back as the same local times', () => {

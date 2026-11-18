@@ -2,10 +2,17 @@ name: Browser tool
 
 # Runs the browser tool's whole gate on every push and pull request, and publishes the result from
 # main to GitHub Pages. The custom domain, app.tottag.net, is set in the repository's Pages settings.
+#
+# Also after a TotTag Helper release is published, so that a dashboard built from the newest
+# tottag-helper-v* tag knows of it and can tell people with an older helper that an update is
+# available (see Web/tottag-helper/README.md, "Releasing").
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_run:
+    workflows: [TotTag Helper release]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -18,12 +25,17 @@ concurrency:
 
 jobs:
   build:
+    # After a helper release, only one that published: a tag's run that succeeded, not a manual
+    # test build.
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
       # The drift and parity checks read the firmware from the external/socitrack submodule.
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          # The tottag-helper-v* tags, for the newest helper release.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

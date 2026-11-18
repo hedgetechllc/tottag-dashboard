@@ -108,10 +108,17 @@ export function TagCharts({ deployment, settings, onSettings, notes }: Props) {
           markers={notesHere} yDomain={[0, 1]} yLabels={[{ value: 0, label: 'Still' }, { value: 1, label: 'Moving' }]}
           formatValue={(value) => (value >= 0.5 ? 'Moving' : 'Still')} />
 
-        <TimeSeriesChart {...common} title="Tags heard over Bluetooth, each minute" height={150}
+        <TimeSeriesChart {...common} title="Tags it measured a distance to, each minute" height={150}
+          lines={[{ id: 'ranged', label: 'Tags measured', color: 'var(--primary)', data: charts.rangedPeers, step: true, fill: true }]}
+          markers={notesHere}
+          formatValue={(value) => `${Math.round(value)} tag${Math.round(value) === 1 ? '' : 's'}`}
+          footnote="Who the tag was near, minute by minute, from its ranging. A gap is a stretch with no ranging at all." />
+
+        <TimeSeriesChart {...common} title="Tags heard while looking for a network" height={130}
           lines={[{ id: 'heard', label: 'Tags heard', color: 'var(--note)', data: charts.bleScan, step: true, fill: true }]}
           markers={notesHere}
-          formatValue={(value) => `${Math.round(value)} tag${Math.round(value) === 1 ? '' : 's'}`} />
+          formatValue={(value) => `${Math.round(value)} tag${Math.round(value) === 1 ? '' : 's'}`}
+          footnote="A tag listens over Bluetooth only while it is not ranging: when it starts up, or after it loses its network. Each bar is one such search, and shows who it heard in the half second before it joined. A few small bars mean it joined at once and stayed joined." />
 
         {charts.imu.x.t.length > 0 ? (
           <TimeSeriesChart {...common} title="Movement (accelerometer)"

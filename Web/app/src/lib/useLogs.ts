@@ -4,15 +4,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { identifyRadioLog } from '@tottag/schema';
 import { downloadBytes, downloadText } from '../adapters/download.ts';
+import {
+  allowWriting, canChooseFolder, canWrite, chooseFolder, folderRecords, rememberedFolder, writeNew, type FolderHandle,
+} from '../adapters/downloadFolder.ts';
 import { directoryLogSource } from '../adapters/fileLogSource.ts';
 import { buildReport, sortByUrgency, type DeviceReport } from '../features/deployment.ts';
 import { summaryCsv, summaryFilename } from '../features/exportCsv.ts';
 import { readRecordFiles, type OpenRecord } from '../features/studyClock.ts';
 import { useDownloaded } from '../features/useTagRecords.ts';
-import type { LoadFailure, LoadResult } from '../ports/logSource.ts';
+import type { LoadedLog, LoadFailure, LoadResult } from '../ports/logSource.ts';
 import { releaseLogs } from './parseAsync.ts';
 
 export type LogsApi = ReturnType<typeof useLogs>;
+
+/** The folder downloads are saved into, as the page shows it. */
+export interface DownloadFolderState {
+  readonly name: string;
+  /** False after a reload until the browser is asked again whether the page may write there. */
+  readonly writable: boolean;
+}
+
+/** What became of one download: where it was saved, or why it was not. */
+export interface DownloadOutcome {
+  readonly report: DeviceReport | null;
+  /** The file name written into the download folder. */
+  readonly savedAs: string | null;
+  readonly saveError: string | null;
+}
 
 export function useLogs() {
   const [reports, setReports] = useState<readonly DeviceReport[]>([]);
@@ -37,7 +55,7 @@ export function useLogs() {
     if (uid !== null && start) markDownloaded(uid, start);
   }, [markDownloaded]);
 
-  const onLoaded = useCallback(async (result: LoadResult) => {
+  const onLoaded = useCallback(async (result: LoadResult): Promise<DeviceReport[]> => {
     setBusy(true);
     try {
       // Parsed in a worker, so a multi-megabyte deployment file does not freeze the page. Sequential
@@ -56,10 +74,81 @@ export function useLogs() {
       }
       setReports((current) => [...current, ...built]);
       setFailures([...result.failed, ...recordFiles.failed]);
+      return built;
     } finally {
       setBusy(false);
     }
   }, [noteOnDisk]);
+
+  // --- The folder downloads are saved into --------------------------------------------------------
+
+  const folderRef = useRef<FolderHandle | null>(null);
+  const [folder, setFolder] = useState<DownloadFolderState | null>(null);
+
+  /** Open the deployment records in the folder, which give its logs their time zone and labels. */
+  const openFolderRecords = useCallback(async (handle: FolderHandle) => {
+    const records = await folderRecords(handle);
+    if (records.length) await onLoaded({ loaded: [], failed: [], records, fromFolder: true });
+  }, [onLoaded]);
+
+  // The folder chosen on an earlier visit, if the browser still has it
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const handle = await rememberedFolder();
+      if (!handle || !live) return;
+      const writable = await canWrite(handle);
+      if (!live) return;
+      folderRef.current = handle;
+      setFolder({ name: handle.name, writable });
+      if (writable) await openFolderRecords(handle);
+    })();
+    return () => { live = false; };
+  }, [openFolderRecords]);
+
+  /** Choose the folder downloads are saved into. From a click. */
+  const chooseDownloadFolder = useCallback(async () => {
+    setSaveError(null);
+    try {
+      const handle = await chooseFolder();
+      if (!handle) return;
+      folderRef.current = handle;
+      setFolder({ name: handle.name, writable: true });
+      await openFolderRecords(handle);
+    } catch (caught) {
+      setSaveError(caught instanceof Error ? caught.message : String(caught));
+    }
+  }, [openFolderRecords]);
+
+  /** Ask again to write into the folder chosen on an earlier visit. From a click. */
+  const allowDownloadFolder = useCallback(async () => {
+    const handle = folderRef.current;
+    if (!handle) return;
+    const writable = await allowWriting(handle);
+    setFolder({ name: handle.name, writable });
+    if (writable) await openFolderRecords(handle);
+  }, [openFolderRecords]);
+
+  /**
+   * A log just downloaded from a tag: opened like any other, and written into the download folder at
+   * once, under the name its card would save it as.
+   */
+  const addDownload = useCallback(async (log: LoadedLog): Promise<DownloadOutcome> => {
+    const [report] = await onLoaded({ loaded: [log], failed: [] });
+    const handle = folderRef.current;
+    if (!report?.data || !handle) return { report: report ?? null, savedAs: null, saveError: null };
+    try {
+      const savedAs = await writeNew(handle, report.saveName, report.data);
+      setSaved((current) => new Set(current).add(report.id));
+      if (!report.error) noteOnDisk(report);
+      return { report, savedAs, saveError: null };
+    } catch (caught) {
+      const reason = caught instanceof Error ? caught.message : String(caught);
+      // Permission can be withdrawn while the page is open; the folder then has to be allowed again
+      if (!(await canWrite(handle))) setFolder({ name: handle.name, writable: false });
+      return { report, savedAs: null, saveError: reason };
+    }
+  }, [noteOnDisk, onLoaded]);
 
   const ordered = useMemo(() => sortByUrgency(reports), [reports]);
   const counts = useMemo(() => {
@@ -120,5 +209,8 @@ export function useLogs() {
     setSaveError(null);
   }, []);
 
-  return { reports, ordered, counts, failures, records, busy, saved, unsaved, saveError, onLoaded, exportCsv, saveLog, openFolder, clear };
+  return {
+    reports, ordered, counts, failures, records, busy, saved, unsaved, saveError, onLoaded, exportCsv, saveLog, openFolder, clear,
+    folder, canChooseDownloadFolder: canChooseFolder(), chooseDownloadFolder, allowDownloadFolder, addDownload,
+  };
 }

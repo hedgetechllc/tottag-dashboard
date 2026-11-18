@@ -44,3 +44,21 @@ export function logTag(report: DeviceReport, scheduled: ExperimentDetails | null
 export function logName(report: DeviceReport, scheduled: ExperimentDetails | null): string {
   return logTag(report, scheduled)?.display ?? report.name;
 }
+
+/**
+ * The last two parts of a tag's address as its name says them, `02:31` from `TotTag 02:31`; null for a
+ * name that does not say them, as tags advertised before their names did.
+ */
+export function addressInName(name: string): string | null {
+  return /([0-9a-f]{2}:[0-9a-f]{2})\s*$/i.exec(name)?.[1]?.toUpperCase() ?? null;
+}
+
+const searchable = (text: string) => text.toLowerCase().replace(/[^0-9a-z]/g, '');
+
+/**
+ * Whether what someone typed finds a tag by its name. Only letters and digits count, so `0231`,
+ * `02:31` and `02 31` all find `TotTag 02:31`; typing nothing finds every tag.
+ */
+export function nameMatches(name: string, typed: string): boolean {
+  return searchable(name).includes(searchable(typed));
+}

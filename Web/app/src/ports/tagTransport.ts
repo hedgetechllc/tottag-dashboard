@@ -1,9 +1,10 @@
 // Talking to a tag, independent of how.
 //
-// Two implementations: Web Bluetooth for a tag on its charger, and Web Serial for a tag plugged
-// into this computer over USB, which puts it into USB maintenance mode. Either can identify,
-// configure and download a tag, so everything that uses a tag goes through this interface and
-// neither knows nor cares which one it has.
+// Three kinds: the TotTag Helper, which reaches tags over Bluetooth by scanning for them where it is
+// installed; Web Bluetooth, which reaches them through the browser's chooser where it is not; and USB
+// for a tag plugged into this computer, which puts it into USB maintenance mode, through the helper
+// where it is installed and the browser's Web Serial where it is not. Any can identify, configure and download a tag, so everything that uses a tag
+// goes through this interface and neither knows nor cares which one it has.
 
 import type { DeploymentConfig, ExperimentDetails, RadioStats } from '@tottag/schema';
 
@@ -90,8 +91,22 @@ export interface TagConnection {
   disconnect(): Promise<void>;
 }
 
+/**
+ * What a page asks of the list a tag is picked from. Only the TotTag Helper's list is the dashboard's
+ * own; the browser's choosers cannot be told any of this, and ignore it.
+ */
+export interface PickOptions {
+  /** False leaves tags plugged in by USB out of the list, for a use only Bluetooth serves. */
+  readonly usb?: boolean;
+  /**
+   * Tags this page is already done with, by the last two parts of their address as in their names
+   * (`02:31`), kept out of the way unless asked for and marked with `label` when they are.
+   */
+  readonly done?: { readonly ids: ReadonlySet<string>; readonly label: string };
+}
+
 export interface TagTransport {
-  readonly id: 'bluetooth' | 'serial';
+  readonly id: 'helper' | 'bluetooth' | 'serial';
   readonly label: string;
   isAvailable(): boolean;
   unavailableReason(): string | null;
@@ -108,7 +123,18 @@ export interface TagTransport {
    * to it. Connecting and identifying take a few seconds, during which nothing else on the page would
    * change, so this is where a page says that it is connecting.
    */
-  requestDevice(onPicked?: () => void): Promise<TagConnection | null>;
+  requestDevice(onPicked?: () => void, options?: PickOptions): Promise<TagConnection | null>;
+
+  /**
+   * Pick several tags at once from this transport's own list, and connect to each in turn. Only
+   * the TotTag Helper has one, of the tags it found nearby and plugged in; the browser's chooser
+   * picks one tag at a time, so the others leave this out.
+   *
+   * Yields each tag's connection, which the caller owns and should let go of before asking for the
+   * next, or an Error for a tag that could not be reached, so one tag out of range does not stop the
+   * rest. `onPicked` is told how many were picked, before any is connected to.
+   */
+  requestDevices?(onPicked?: (count: number) => void, options?: PickOptions): AsyncGenerator<TagConnection | Error, void, void>;
 
   /**
    * Reconnect to a device already granted to this origin, with no chooser.

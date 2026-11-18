@@ -3,7 +3,6 @@ import {
   buildManifest, diffReadback, encodeExperimentDetails, formatDate, manifestToText, MAX_NUM_RANGING_DEVICES,
   shortUidHex, tagName, unixToWallClock, type ClockChangePolicy, type DeviceWriteResult, type Problem, type WriteOutcome,
 } from '@tottag/schema';
-import { webBluetoothTransport } from '../adapters/webBluetooth.ts';
 import { webSerialTransport } from '../adapters/webSerial.ts';
 import { downloadText } from '../adapters/download.ts';
 import { DateTimeField, Field, TimeField, TimezoneField } from '../components/Fields.tsx';
@@ -11,11 +10,13 @@ import { TagPills } from '../components/TagFacts.tsx';
 import { describeSchedule, draftProblems, draftToConfig, recordBaseName, type DraftDevice } from '../features/schedule.ts';
 import { assessSnapshot, batteryLow, replaceDecision, storedFromDetails, type ReplaceDecision, type TagCheck } from '../features/tagStatus.ts';
 import type { DraftApi } from '../features/useDeploymentDraft.ts';
-import { describeKnownTag, routeFor, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
+import { describeKnownTag, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
 import { useDownloaded, useLastRecord, useTagChecks } from '../features/useTagRecords.ts';
-import { errorText, reachableWithoutChooser, transportFor, unlistedNote, unreachableMessage, useReachableTags, withTag } from '../lib/tagAccess.ts';
+import {
+  bluetoothTransport, errorText, pickAgainWith, reachableWithoutChooser, routeTo, unlistedNote, unreachableMessage, useReachableTags, withTag,
+} from '../lib/tagAccess.ts';
 import { useNow } from '../lib/useNow.ts';
-import type { TagTransport } from '../ports/tagTransport.ts';
+import type { TagConnection, TagTransport } from '../ports/tagTransport.ts';
 
 /** Long enough to find a tag in a bag, short enough not to be a nuisance. Matches the Python tool. */
 const BUZZ_SECONDS = 10;
@@ -50,7 +51,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
   const { tags: knownTags, remember, forget } = useKnownTags();
   // Also what re-renders the rows below when a tag becomes reachable again
   const reachableTags = useReachableTags(knownTags);
-  const unlisted = unlistedNote(knownTags.length, reachableTags.length);
+  const unlisted = unlistedNote(knownTags, reachableTags.length);
   const checks = useTagChecks();
   const { downloadedAt } = useDownloaded();
   const { record, setRecord, markSaved } = useLastRecord();
@@ -74,7 +75,9 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
   const config = useMemo(() => draftToConfig(draft), [draft]);
   const problems = useMemo(() => draftProblems(draft, now), [draft, now]);
   const summary = useMemo(() => describeSchedule(draft), [draft]);
-  const bluetoothReason = webBluetoothTransport.unavailableReason();
+  const bluetoothReason = bluetoothTransport().unavailableReason();
+  // The TotTag Helper is running, so Add a tag picks from every tag nearby; this re-renders when that changes
+  const helperRunning = bluetoothTransport().id === 'helper';
   const serialReason = webSerialTransport.unavailableReason();
   const noTransport = !!bluetoothReason && !!serialReason;
 
@@ -82,7 +85,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
     check?.stored ? downloadedAt(eui[0] ?? 0, check.stored.startTime) : null, [downloadedAt]);
 
   const rows = draft.devices.map((device, index) => {
-    const route = routeFor(knownTags, device.eui);
+    const route = routeTo(knownTags, device.eui);
     const check = checks.get(device.eui);
     const decision = replaceDecision(check, config, now, !!downloadedFor(device.eui, check), device.replaceAllowed);
     return {
@@ -116,36 +119,67 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
     return check;
   }, [checks]);
 
+  /** Remember a tag just reached, read it while the link is open, and put it in the deployment unless it is there already. */
+  const takeIn = useCallback(async (connection: TagConnection): Promise<'added' | 'already'> => {
+    try {
+      const { identity } = connection;
+      remember(identity);
+      // Read it while the link is open anyway, so its row says straight away what state it is in.
+      await recordCheckFrom(connection).catch(() => null);
+      if (draft.devices.some((device) => sameEui(device.eui, identity.eui))) return 'already';
+      addDevice({ eui: identity.eui, label: '' });
+      return 'added';
+    } finally {
+      // A tag accepts only two connections, and nothing more is wanted from it right now.
+      await connection.disconnect();
+    }
+  }, [addDevice, draft.devices, recordCheckFrom, remember]);
+
   const addNewTag = useCallback(async (transport: TagTransport) => {
     setNotice(null);
     setAdding(true);
     try {
+      if (transport.requestDevices) {
+        // Several at once, from the TotTag Helper's list of tags nearby, one after another
+        let total = 0;
+        const already: string[] = [];
+        const unreachable: string[] = [];
+        const tags = transport.requestDevices((count) => {
+          total = count;
+          setNotice({ tone: 'info', text: `Connecting to the first of ${count} tag${count === 1 ? '' : 's'}…` });
+        });
+        for (let index = 1; ; index += 1) {
+          const step = await tags.next();
+          if (step.done) break;
+          if (step.value instanceof Error) {
+            unreachable.push(step.value.message);
+          } else {
+            setNotice({ tone: 'info', text: `Reading ${tagName(step.value.identity.eui)} (${index} of ${total})…` });
+            if ((await takeIn(step.value)) === 'already') already.push(tagName(step.value.identity.eui));
+          }
+          if (index < total) setNotice({ tone: 'info', text: `Connecting to tag ${index + 1} of ${total}…` });
+        }
+        const said = [
+          unreachable.length ? `${unreachable.length} of the ${total} tags picked could not be reached (${unreachable[0]}). Make sure they are on their chargers and close to this computer, then add them again.` : '',
+          already.length ? `${already.join(', ')} ${already.length === 1 ? 'is' : 'are'} already in this deployment.` : '',
+        ].filter(Boolean).join(' ');
+        setNotice(said ? { tone: unreachable.length ? 'error' : 'info', text: said } : null);
+        return;
+      }
+
       // Which tag was picked cannot be known before connecting: over Bluetooth the chooser shows only
       // advertised names and the address comes from GATT System ID; over USB it has to be asked for.
       const connection = await transport.requestDevice(() => setNotice({ tone: 'info', text: 'Connecting to the tag…' }));
       if (!connection) return;
-      try {
-        const { identity } = connection;
-        remember(identity);
-        // Read it while the link is open anyway, so its row says straight away what state it is in.
-        setNotice({ tone: 'info', text: `Reading ${tagName(identity.eui)}…` });
-        await recordCheckFrom(connection).catch(() => null);
-        if (draft.devices.some((device) => sameEui(device.eui, identity.eui))) {
-          setNotice({ tone: 'info', text: `${tagName(identity.eui)} is already in this deployment.` });
-        } else {
-          setNotice(null);
-          addDevice({ eui: identity.eui, label: '' });
-        }
-      } finally {
-        // A tag accepts only two connections, and nothing more is wanted from it right now.
-        await connection.disconnect();
-      }
+      setNotice({ tone: 'info', text: `Reading ${tagName(connection.identity.eui)}…` });
+      const outcome = await takeIn(connection);
+      setNotice(outcome === 'already' ? { tone: 'info', text: `${tagName(connection.identity.eui)} is already in this deployment.` } : null);
     } catch (caught) {
       setNotice({ tone: 'error', text: errorText(caught) });
     } finally {
       setAdding(false);
     }
-  }, [addDevice, draft.devices, recordCheckFrom, remember]);
+  }, [takeIn]);
 
   const addKnownTag = useCallback((tag: KnownTag) => {
     setNotice(null);
@@ -155,7 +189,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
   /** Pick a tag in the chooser again, for a row this browser can no longer reach on its own. */
   const reconnect = useCallback(async (device: DraftDevice, route: KnownTag | null) => {
     setNotice(null);
-    const transport = route ? transportFor(route) : webBluetoothTransport;
+    const transport = pickAgainWith(route);
     setBusyKey(keyOf(device.eui));
     try {
       const connection = await transport.requestDevice();
@@ -228,7 +262,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
       for (let index = 0; index < draft.devices.length; index += 1) {
         const device = draft.devices[index]!;
         set(index, { state: 'checking' });
-        const route = routeFor(knownRef.current, device.eui);
+        const route = routeTo(knownRef.current, device.eui);
         let result: Omit<DeviceWriteResult, 'eui' | 'label'>;
         try {
           const attempt = route ? await withTag(route, async (connection) => {
@@ -368,21 +402,24 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
             <li>Use <strong>Buzz</strong> to make sure you picked the tag you meant, then give each one a label.</li>
           </ol>
           <div className="actions">
-            <button type="button" className="button" onClick={() => void addNewTag(webBluetoothTransport)}
+            <button type="button" className="button" onClick={() => void addNewTag(bluetoothTransport())}
               disabled={!!bluetoothReason || writing || adding} title={bluetoothReason ?? undefined}>Add a tag</button>
-            <button type="button" className="button button--quiet" onClick={() => void addNewTag(webSerialTransport)}
-              disabled={!!serialReason || writing || adding} title={serialReason ?? 'For a tag plugged into this computer with a USB cable'}>
-              Add a tag plugged in by USB
-            </button>
-            {reachableTags.length > 0 && (
+            {/* With the TotTag Helper, Add a tag lists every tag nearby, so neither of these is needed */}
+            {!helperRunning && (
+              <button type="button" className="button button--quiet" onClick={() => void addNewTag(webSerialTransport)}
+                disabled={!!serialReason || writing || adding} title={serialReason ?? 'For a tag plugged into this computer with a USB cable'}>
+                Add a tag plugged in by USB
+              </button>
+            )}
+            {!helperRunning && reachableTags.length > 0 && (
               <button type="button" className="button button--quiet" aria-expanded={showKnown}
                 onClick={() => setShowKnown((open) => !open)} disabled={writing}>
-                {showKnown ? 'Hide tags this browser knows' : `Add a tag this browser knows (${reachableTags.length})`}
+                {showKnown ? 'Hide tags used recently' : `Add a tag used recently (${reachableTags.length})`}
               </button>
             )}
           </div>
 
-          {showKnown && reachableTags.length > 0 && (
+          {!helperRunning && showKnown && reachableTags.length > 0 && (
             <ul className="chips">
               {reachableTags.map((tag) => {
                 const already = draft.devices.some((device) => sameEui(device.eui, tag.eui));
@@ -399,7 +436,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
               })}
             </ul>
           )}
-          {unlisted && <p className="panel__note">{unlisted}</p>}
+          {!helperRunning && unlisted && <p className="panel__note">{unlisted}</p>}
 
           {notice && <p className={`banner banner--${notice.tone === 'error' ? 'crit' : 'info'}`} role="status">{notice.text}</p>}
 

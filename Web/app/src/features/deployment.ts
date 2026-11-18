@@ -3,12 +3,32 @@
 // Kept out of components so it can be reasoned about and, later, tested without a DOM. The
 // components below it render what this returns and make no decisions of their own.
 
-import type { DeploymentHealth, LogCharts, ParseReport, RadioSummary } from '@tottag/schema';
+import { identifyRadioLog, parseExperimentDetails, shortAddress, type DeploymentHealth, type LogCharts, type ParseReport, type RadioSummary } from '@tottag/schema';
 import { parseLogAsync } from '../lib/parseAsync.ts';
 import { canonicalLogName } from './logFilename.ts';
 import type { LoadedLog } from '../ports/logSource.ts';
 
 export type DeviceStatus = 'ok' | 'note' | 'warning' | 'error';
+
+/**
+ * The tags whose logs are open, by the last two parts of their address as in their names (`02:31`).
+ *
+ * A log names its own tag by the one-byte ID alone; its deployment details hold every tag's full
+ * address, and within a deployment no two tags share that byte. A log without details, or whose tag
+ * cannot be told, is left out.
+ */
+export function openLogTags(reports: readonly DeviceReport[]): Set<string> {
+  const tags = new Set<string>();
+  for (const report of reports) {
+    const uid = report.radio ? identifyRadioLog(report.radio, report.name, report.deviceUid) : report.deviceUid ?? null;
+    if (uid === null || !report.report?.details) continue;
+    try {
+      const eui = parseExperimentDetails(report.report.details).uids.find((each) => each[0] === uid);
+      if (eui) tags.add(shortAddress(eui));
+    } catch { /* details too damaged to read */ }
+  }
+  return tags;
+}
 
 export interface DeviceReport {
   readonly id: string;

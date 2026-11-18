@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { BATTERY_EVENT, STORAGE_TYPE } from '../src/constants.ts';
 import { parse, parseV2 } from '../src/log.ts';
 import {
-  bleScanPerMinute, buildLogCharts, capSpans, chargingSpans, chartBuffers, imuSeries, motionSteps, recordingSegments,
+  bleScanPerMinute, rangedPeersPerMinute, buildLogCharts, capSpans, chargingSpans, chartBuffers, imuSeries, motionSteps, recordingSegments, withoutSpans,
   RECORDING_GAP_S, temperatureSeries, voltageSeries,
 } from '../src/charts.ts';
 import { buildDiagnosticsBody, buildTestPages, buildTestStream } from './helpers.ts';
@@ -51,6 +51,17 @@ test('recording runs until the tag falls silent for longer than two heartbeats',
 test('a small step backwards in time does not split or reorder recording', () => {
   const segments = recordingSegments(records([voltage(10_000, 4000), voltage(9_000, 4000), voltage(20_000, 4000)]), START);
   assert.deepEqual([...segments], [START + 9, START + 20]);
+});
+
+test('time on the charger is not time recording, though the charger writes records that bridge the gap', () => {
+  // Recording 0–600 s; on the charger 200–300 s and 500–700 s
+  assert.deepEqual([...withoutSpans(Float64Array.of(0, 600), Float64Array.of(200, 300, 500, 700))], [0, 200, 300, 500]);
+  assert.deepEqual([...withoutSpans(Float64Array.of(0, 100, 400, 600), Float64Array.of(100, 400))], [0, 100, 400, 600]);
+  assert.deepEqual([...withoutSpans(Float64Array.of(0, 100), Float64Array.of(0, 100))], []);
+  assert.deepEqual([...withoutSpans(Float64Array.of(0, 100), Float64Array.of(50, 50))], [0, 100], 'a moment on the charger split recording');
+  // A log that ends on the charger, as one does once it is plugged in to be downloaded
+  const raw = records([voltage(0, 4000), voltage(300_000, 4000), charging(400_000, BATTERY_EVENT.BATTERY_PLUGGED), voltage(600_000, 4100)]);
+  assert.deepEqual([...buildLogCharts({ records: raw, experimentStartTime: START } as never).recording], [START, START + 400]);
 });
 
 test('time on the charger comes from plugged and unplugged records', () => {
@@ -131,6 +142,13 @@ test('a long burst of movement is thinned, keeping its extremes', () => {
   assert.ok([...x.v].includes(30_000), 'the spike survives');
 });
 
+test('the tags ranged with are counted each minute, and a round with nobody in it counts none', () => {
+  const round = (ms: number, peers: number[]) => ({ ms, kind: 'ranges', ranges: new Map(peers.map((peer) => [peer, 1000])) }) as never;
+  const series = rangedPeersPerMinute([round(1_000, [0x0b, 0x0e]), round(30_000, [0x0e, 0x14]), round(61_000, []), round(185_000, [0x31])], START);
+  assert.deepEqual([...series.t], [START, START + 60, START + 120, START + 180, START + 240]);
+  assert.deepEqual(values(series.v), [3, 0, 'break', 1, 'break']);
+});
+
 test('a real log reduces to small charts with everything in its place', () => {
   for (const name of ['boot.ttg', 'watchdog.ttg']) {
     const result = fixture(name);
@@ -140,6 +158,7 @@ test('a real log reduces to small charts with everything in its place', () => {
     assert.ok(charts.recording.length >= 2, `${name} recorded something`);
     assert.ok(charts.voltage.t.length >= 2);
     assert.ok(charts.bleScan.t.length > 0);
+    assert.ok(charts.rangedPeers.t.length > 0);
     for (const t of charts.bleScan.t) assert.ok(t >= charts.start);
     // Every buffer can be handed over without copying, and none is shared.
     const buffers = chartBuffers(charts);

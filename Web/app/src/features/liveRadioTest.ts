@@ -3,7 +3,7 @@
 // runs against fake tags in tests; the page subscribes and renders.
 
 import { LiveRadioRecorder, tagName, type RadioStats } from '@tottag/schema';
-import type { TagConnection } from '../ports/tagTransport.ts';
+import type { TagConnection, TagTransport } from '../ports/tagTransport.ts';
 import type { RadioDeployment } from './radioCheck.ts';
 
 export type LiveDeviceStatus =
@@ -43,8 +43,8 @@ export interface LiveTestState {
 }
 
 export interface LiveTestDependencies {
-  /** Reconnect to a device already picked in this page session, or null if it cannot be reached yet. */
-  readonly reconnect: (handle: string) => Promise<TagConnection | null>;
+  /** Reconnect to a device already picked in this page session, the way it was reached, or null if it cannot be reached yet. */
+  readonly reconnect: (handle: string, transport: TagTransport['id']) => Promise<TagConnection | null>;
   readonly now?: () => number;
   readonly schedule?: (callback: () => void, ms: number) => () => void;
   readonly pollMs?: number;
@@ -58,6 +58,8 @@ const START_GRACE_MS = 30_000;
 
 interface Entry {
   readonly handle: string;
+  /** How it was reached, which is how it is reached again: through the TotTag Helper or the browser. */
+  readonly transport: TagTransport['id'];
   readonly eui: Uint8Array;
   readonly uid: number;
   readonly label: string;
@@ -121,7 +123,11 @@ export class LiveRadioTest {
   /** Add a device picked in the chooser. Returns why it cannot take part, or null. */
   add(connection: TagConnection, label?: string): string | null {
     if (this.phase !== 'setup') return 'A test is already under way.';
-    if (!connection.liveRadio) return `${tagName(connection.identity.eui)} cannot run a live test: it needs newer firmware, and a Bluetooth connection.`;
+    if (!connection.liveRadio) {
+      return connection.identity.transport === 'serial'
+        ? `${tagName(connection.identity.eui)} is plugged in by USB, which turns its radio off. Unplug it and put it on its charger.`
+        : `${tagName(connection.identity.eui)} cannot run a live test: it needs newer firmware, and a Bluetooth connection.`;
+    }
     const uid = connection.identity.eui[0] ?? 0;
     const existing = this.entries.find((entry) => entry.uid === uid);
     if (existing) {
@@ -132,7 +138,7 @@ export class LiveRadioTest {
       return null;
     }
     this.entries.push({
-      handle: connection.identity.handle, eui: connection.identity.eui, uid, label: label?.trim() || tagName(connection.identity.eui),
+      handle: connection.identity.handle, transport: connection.identity.transport, eui: connection.identity.eui, uid, label: label?.trim() || tagName(connection.identity.eui),
       status: 'ready', message: null, connection, recorder: null, previous: null, roundsPerSecond: null,
       generation: 0, cancel: [], unwatch: null,
     });
@@ -159,7 +165,7 @@ export class LiveRadioTest {
       entry.status = 'starting';
       this.changed();
       let connection: TagConnection | null = null;
-      try { connection = await this.deps.reconnect(entry.handle); } catch { connection = null; }
+      try { connection = await this.deps.reconnect(entry.handle, entry.transport); } catch { connection = null; }
       if (this.phase !== 'starting') {
         // Stopped while this one was being reached
         void connection?.disconnect();
@@ -300,7 +306,7 @@ export class LiveRadioTest {
   private async tryReconnect(entry: Entry, generation: number): Promise<void> {
     if (generation !== entry.generation || this.testOver()) return;
     let connection: TagConnection | null = null;
-    try { connection = await this.deps.reconnect(entry.handle); } catch { connection = null; }
+    try { connection = await this.deps.reconnect(entry.handle, entry.transport); } catch { connection = null; }
     if (generation !== entry.generation || this.testOver()) {
       void connection?.disconnect();
       return;

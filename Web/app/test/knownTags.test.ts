@@ -47,3 +47,30 @@ test('a saved list holding an old and a new handle for one tag loads as the most
     assert.equal(loaded.find((entry) => entry.handle === 'new-a')?.firstSeen, '2026-01-01T00:00:00.000Z');
   }
 });
+
+test('a tag known several ways is reached through the helper, then the browser, then USB, among the ways usable now', () => {
+  const known = [
+    tag('usb:a', EUI_A, '2026-11-01T00:00:00.000Z', 'serial'),
+    tag('ble-a', EUI_A, '2026-11-02T00:00:00.000Z', 'bluetooth'),
+    tag('helper-a', EUI_A, '2026-11-03T00:00:00.000Z', 'helper'),
+  ];
+  assert.equal(routeFor(known, EUI_A)?.handle, 'helper-a');
+  assert.equal(routeFor(known, EUI_A, (transport) => transport !== 'helper')?.handle, 'ble-a', 'the helper is not running');
+  assert.equal(routeFor(known, EUI_A, (transport) => transport === 'serial')?.handle, 'usb:a', 'only USB is usable');
+  // Known only through the helper, which is not running: still returned, so the page can say what to do
+  assert.equal(routeFor([known[2]!], EUI_A, (transport) => transport !== 'helper')?.handle, 'helper-a');
+});
+
+test('the lists offer the ten tags used most recently, each once on Bluetooth and once on USB', async () => {
+  const { RECENT_TAGS, recentlyUsed, unlistedNote } = await import('../src/lib/tagAccess.ts');
+  const day = (n: number) => `2026-11-${String(n).padStart(2, '0')}T00:00:00.000Z`;
+  const many = Array.from({ length: 14 }, (_, n) => tag(`t${n}`, [n + 1, 0x02, 0x42, 0xe5, 0x98, 0xc0], day(n + 1)));
+  // t3 was reached through the TotTag Helper since, and over USB before: one tag on Bluetooth, and one on USB
+  many.push(tag('helper-t3', [4, 0x02, 0x42, 0xe5, 0x98, 0xc0], day(20), 'helper'));
+  many.push(tag('usb:t3', [4, 0x02, 0x42, 0xe5, 0x98, 0xc0], day(19), 'serial'));
+  const recent = recentlyUsed(many);
+  assert.equal(recent.length, RECENT_TAGS);
+  assert.deepEqual(recent.map((each) => each.handle), ['helper-t3', 'usb:t3', 't13', 't12', 't11', 't10', 't9', 't8', 't7', 't6']);
+  assert.equal(unlistedNote(many, 10), null, 'tags past the ten most recent were counted as missing from the list');
+  assert.match(unlistedNote(many, 8) ?? '', /^2 tags used recently are not listed/);
+});

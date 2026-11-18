@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RADIO_TEST_MAX_SECONDS, tagName } from '@tottag/schema';
-import { webBluetoothTransport } from '../adapters/webBluetooth.ts';
-import { LinkMatrix, PositionsPanel, RadioCard, VERDICT_ORDER, usePositions } from '../components/RadioResults.tsx';
+import {
+  LinkMatrix, POSITIONS_NOTE, PositionCells, PositionShortcuts, RadioCard, VERDICT_ORDER, usePositions,
+} from '../components/RadioResults.tsx';
 import { LiveRadioTest, type LiveDevice, type LiveDeviceStatus, type LiveTestState } from '../features/liveRadioTest.ts';
 import { formatPercent, runRadioCheck } from '../features/radioCheck.ts';
-import { useKnownTags } from '../features/useKnownTags.ts';
-import { useReachableTags } from '../lib/tagAccess.ts';
+import { knownTagTransport, useKnownTags } from '../features/useKnownTags.ts';
+import { bluetoothTransport, TRANSPORTS, transportFor, useReachableTags } from '../lib/tagAccess.ts';
 import { useNow } from '../lib/useNow.ts';
 
 const MIN_MINUTES = 2;
@@ -32,11 +33,14 @@ const STATUS_CLASS: Record<LiveDeviceStatus, string> = {
  * itself when the test ends.
  */
 export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => string | undefined }) {
-  const unavailable = webBluetoothTransport.unavailableReason();
-  const { tags: knownTags } = useKnownTags();
-  const reachableTags = useReachableTags(knownTags).filter((known) => (known.transport ?? 'bluetooth') === 'bluetooth');
+  const unavailable = bluetoothTransport().unavailableReason();
+  // The helper's list has every tag nearby, several at a time, so the list of tags this browser knows is not needed while it runs
+  const helperRunning = bluetoothTransport().id === 'helper';
+  const { tags: knownTags, remember } = useKnownTags();
+  // A tag on USB cannot range, so only tags reached over Bluetooth, by the helper or the browser
+  const reachableTags = useReachableTags(knownTags).filter((known) => knownTagTransport(known) !== 'serial');
   const testRef = useRef<LiveRadioTest | null>(null);
-  if (!testRef.current) testRef.current = new LiveRadioTest({ reconnect: (handle) => webBluetoothTransport.connect(handle) });
+  if (!testRef.current) testRef.current = new LiveRadioTest({ reconnect: (handle, transport) => TRANSPORTS[transport].connect(handle) });
   const test = testRef.current;
   useEffect(() => () => test.dispose(), [test]);
 
@@ -65,7 +69,31 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
     setError(null);
     setBusy(true);
     try {
-      const connection = await webBluetoothTransport.requestDevice(() => setStatus('Connecting to the tag…'));
+      const transport = bluetoothTransport();
+      if (transport.requestDevices) {
+        // Several at once, from the TotTag Helper's list of tags nearby; each connection is kept for the test
+        const missing: string[] = [];
+        let total = 0;
+        // Not the tags plugged in: a tag plugged into a computer turns its radio off
+        const tags = transport.requestDevices((count) => {
+          total = count;
+          setStatus(`Connecting to the first of ${count} tag${count === 1 ? '' : 's'}…`);
+        }, { usb: false });
+        for (let index = 1; ; index += 1) {
+          const step = await tags.next();
+          if (step.done) break;
+          if (step.value instanceof Error) {
+            missing.push(step.value.message);
+          } else {
+            const refused = test.add(step.value, labelFor(step.value.identity.eui));
+            if (refused) { missing.push(refused); void step.value.disconnect(); }
+          }
+          if (index < total) setStatus(`Connecting to tag ${index + 1} of ${total}…`);
+        }
+        if (missing.length) setError(`Could not add ${missing.length} of the ${total} tags picked: ${missing.join(' ')}`);
+        return;
+      }
+      const connection = await transport.requestDevice(() => setStatus('Connecting to the tag…'));
       if (!connection) return;
       const refused = test.add(connection, labelFor(connection.identity.eui));
       if (refused) { setError(refused); void connection.disconnect(); }
@@ -85,8 +113,9 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
     try {
       for (const [index, tag] of toAdd.entries()) {
         setStatus(`Connecting to ${tagName(tag.eui)} (${index + 1} of ${toAdd.length})…`);
-        const connection = await webBluetoothTransport.connect(tag.handle);
+        const connection = await transportFor(tag).connect(tag.handle);
         if (!connection) { missing.push(tagName(tag.eui)); continue; }
+        remember(connection.identity);
         const refused = test.add(connection, labelFor(Uint8Array.from(tag.eui)));
         if (refused) { missing.push(refused); void connection.disconnect(); }
       }
@@ -132,15 +161,17 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
           </p>
           <ol className="steps">
             <li>Put the tags on their chargers, or leave them running a deployment, so they can be reached.</li>
-            <li>Add each tag. Tags this browser has seen before can be added all at once.</li>
+            <li>{helperRunning ? 'Add the tags, all at once from the list.' : 'Add each tag. The tags used most recently can be added all at once.'}</li>
             <li>Start the test. Each tag restarts into it and begins measuring, on its charger or off it.</li>
             <li>Set them where they can all see each other, at least half a meter apart. The test keeps running as they move.</li>
             <li>Verdicts appear within the first minute and update every 15 seconds; they firm up once every tag has a minute of data.</li>
           </ol>
           <div className="actions">
             <button type="button" className="button" disabled={busy} onClick={() => void addFromChooser()}>Add a tag</button>
-            <button type="button" className="button button--quiet" disabled={busy || !reachableTags.length}
-              onClick={() => void addKnown()}>Add tags this browser knows</button>
+            {!helperRunning && (
+              <button type="button" className="button button--quiet" disabled={busy || !reachableTags.length}
+                onClick={() => void addKnown()}>Add tags used recently</button>
+            )}
             <label className="inline-field">
               Run for
               <input className="rtable__input" type="number" inputMode="numeric" min={MIN_MINUTES} max={MAX_MINUTES} step={1}
@@ -155,7 +186,8 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
       )}
 
       {state.devices.length > 0 && (
-        <DeviceTable devices={state.devices} onRemove={state.phase === 'setup' ? (handle) => test.remove(handle) : null} busy={busy} />
+        <DeviceTable devices={state.devices} onRemove={state.phase === 'setup' ? (handle) => test.remove(handle) : null} busy={busy}
+          positions={positions} />
       )}
 
       {truncated && (
@@ -190,10 +222,6 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
             </>
           )}
         </>
-      )}
-
-      {state.devices.length > 0 && (
-        <PositionsPanel devices={state.devices.map((device) => ({ uid: device.uid, label: device.label, name: tagName(device.eui) }))} positions={positions} />
       )}
     </>
   );
@@ -256,18 +284,23 @@ function TestStatus({ state, stopping, onStop, onAgain }: {
   );
 }
 
-function DeviceTable({ devices, onRemove, busy }: {
+function DeviceTable({ devices, onRemove, busy, positions }: {
   devices: readonly LiveDevice[];
   onRemove: ((handle: string) => void) | null;
   /** Tags are being added or the test started, so the list must not change underneath that. */
   busy: boolean;
+  /** Where each tag is, optionally, entered in its own row. */
+  positions: ReturnType<typeof usePositions>;
 }) {
   return (
     <section className="panel">
       <h2 className="panel__title">Tags</h2>
       <table className="rtable">
         <thead>
-          <tr><th>Tag</th><th>Status</th><th>Role</th><th>Rounds/s</th><th>Receives failed</th><th>By antenna</th><th /></tr>
+          <tr>
+            <th>Tag</th><th>Status</th><th>Role</th><th>Rounds/s</th><th>Receives failed</th><th>By antenna</th>
+            <th>X (m)</th><th>Y (m)</th><th />
+          </tr>
         </thead>
         <tbody>
           {devices.map((device) => {
@@ -290,6 +323,7 @@ function DeviceTable({ devices, onRemove, busy }: {
                 <td>{device.roundsPerSecond === null ? '—' : device.roundsPerSecond.toFixed(2)}</td>
                 <td>{total ? formatPercent(stats!.rxFailed / total) : '—'}</td>
                 <td>{antennas}</td>
+                <PositionCells uid={device.uid} label={device.label} positions={positions} />
                 <td>{onRemove && <button type="button" className="link link--quiet" onClick={() => onRemove(device.handle)} disabled={busy}>Remove</button>}</td>
               </tr>
             );
@@ -299,6 +333,8 @@ function DeviceTable({ devices, onRemove, busy }: {
       {devices.some((device) => device.stats) && (
         <p className="panel__note">Brackets in the By antenna column mark the antenna that a tag listens for schedules on.</p>
       )}
+      <p className="panel__note">{POSITIONS_NOTE}</p>
+      <PositionShortcuts uids={devices.map((device) => device.uid)} positions={positions} />
     </section>
   );
 }

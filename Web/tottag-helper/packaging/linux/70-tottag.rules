@@ -1,0 +1,5 @@
+# TotTag (USB vendor 1209, product 2828): lets the person at the computer open its serial port,
+# for the TotTag Helper, a browser's Web Serial, and the Python tools, without being in the
+# dialout group; and tells ModemManager to leave it alone. Numbered below 73 so that logind sees
+# the uaccess tag.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="2828", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"

@@ -49,24 +49,22 @@ export interface DeploymentDraft {
 export const localTimezone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 /**
- * A new deployment: from the coming midnight for a week, recording around the clock.
+ * A new deployment: from now until 11:59 PM two weeks from today, recording around the clock.
  *
  * The daily hours offered when someone turns them on are 7:00 AM to 10:00 PM, the same as the
  * desktop tool, so that the two start a study the same way.
  */
 export function defaultDraft(now: number, timezone: string = localTimezone()): DeploymentDraft {
   const zone = isValidTimezone(timezone) ? timezone : 'UTC';
-  const today = unixToWallClock(now, zone).slice(0, 10);
-  const midnight = wallClockToUnix(`${today}T00:00`, zone);
-  // A day later on the wall clock, whatever the clocks do overnight.
-  const tomorrow = unixToWallClock(midnight + 36 * 3600, zone).slice(0, 10);
-  const startUnix = wallClockToUnix(`${tomorrow}T00:00`, zone);
-  const weekLater = unixToWallClock(startUnix + 7 * 86400 + 12 * 3600, zone).slice(0, 10);
+  const start = unixToWallClock(now, zone);
+  // Fourteen days on the calendar, whatever the clocks do in between
+  const [year, month, day] = start.slice(0, 10).split('-').map(Number);
+  const twoWeeksLater = new Date(Date.UTC(year!, month! - 1, day! + 14)).toISOString().slice(0, 10);
   return {
     name: '',
     timezone: zone,
-    start: `${tomorrow}T00:00`,
-    end: `${weekLater}T00:00`,
+    start,
+    end: `${twoWeeksLater}T23:59`,
     useDailyTimes: false,
     dailyStart: '07:00',
     dailyEnd: '22:00',

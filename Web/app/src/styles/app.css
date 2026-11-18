@@ -124,7 +124,7 @@
 .panel__title { font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .panel__subtitle { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2); }
 .panel__count { margin-left: auto; font-size: var(--text-sm); color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.panel__note { color: var(--ink-2); font-size: var(--text-sm); max-width: 78ch; }
+.panel__note { color: var(--ink-2); font-size: var(--text-sm); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .hint { font-size: var(--text-sm); color: var(--ink-3); }
@@ -422,6 +422,40 @@
 .danger-zone { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
 .live-ranges { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
 
+/* The TotTag Helper's list of tags nearby, in place of the browser's Bluetooth chooser */
+.picker {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 22px 24px;
+  width: min(460px, calc(100vw - 32px));
+}
+.picker[open] { display: flex; flex-direction: column; gap: 14px; }
+.picker::backdrop { background: color-mix(in srgb, var(--ink) 35%, transparent); }
+/* The padding keeps the rows' borders off the edge the list scrolls within. The dialog re-centers as
+   rows arrive and can land half a pixel off, and a border flush with that edge is then cut off. */
+.picker__list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow: auto; padding: 2px; margin: -2px; }
+.picker__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+.picker__row:hover { border-color: var(--primary); }
+.picker__row--off { cursor: default; color: var(--ink-3); }
+.picker__row--done .picker__name { color: var(--ink-3); }
+.picker__row--off:hover { border-color: var(--line-2); }
+.picker__name { flex: 1; font-weight: var(--weight-medium); }
+.picker__signal { color: var(--ink-3); font-size: var(--text-xs); }
+
 /* --- Review: intake, cards, findings ---------------------------------------------------------------- */
 
 .review__intake { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
@@ -447,6 +481,12 @@
 .nowrap { white-space: nowrap; }
 
 .transfer { display: flex; flex-direction: column; gap: 6px; }
+.transfer__text--name { color: var(--ink); font-weight: var(--weight-medium); }
+/* Where downloads are saved: chosen before downloading, so no log is left only in the browser */
+.save-to { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.save-to__label { font-size: var(--text-sm); color: var(--ink-2); }
+.save-to__folder { display: inline-flex; align-items: center; gap: 6px; font-weight: var(--weight-medium); min-width: 0; overflow-wrap: anywhere; }
+.save-to__note { flex-basis: 100%; font-size: var(--text-xs); color: var(--ink-3); }
 .transfer__bar { height: 8px; border-radius: var(--radius-pill); background: var(--sunken); overflow: hidden; }
 .transfer__fill { height: 100%; background: var(--primary); transition: width 300ms ease; }
 .transfer__fill--busy { width: 30%; animation: transfer-busy 1.4s ease-in-out infinite; }
@@ -647,7 +687,6 @@
 .tools__group { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
 .tools__label { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2); }
 .tools__value { font-size: var(--text-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.tools__note { max-width: 90ch; }
 .input--number { width: 84px; min-height: 34px; padding: 4px 8px; }
 .input--select { width: auto; min-height: 34px; padding: 4px 8px; max-width: 100%; }
 .charts { gap: 28px; }

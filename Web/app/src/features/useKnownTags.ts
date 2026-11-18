@@ -75,12 +75,7 @@ export function rememberTag(tags: readonly KnownTag[], seen: KnownTag): KnownTag
 export function useKnownTags() {
   const [tags, setTags] = useSharedStore(store);
 
-  const remember = useCallback((identity: TagIdentity) => {
-    const now = new Date().toISOString();
-    setTags((current) => rememberTag(current, {
-      handle: identity.handle, transport: identity.transport, eui: Array.from(identity.eui), firstSeen: now, lastSeen: now,
-    }));
-  }, [setTags]);
+  const remember = useCallback((identity: TagIdentity) => rememberUsed(identity), []);
 
   const forget = useCallback((handle: string) => {
     setTags((current) => current.filter((tag) => tag.handle !== handle));
@@ -89,18 +84,43 @@ export function useKnownTags() {
   return { tags, remember, forget };
 }
 
+/**
+ * Remember a tag just picked or reached, as used now: lists of the tags this browser knows offer the
+ * ones used most recently. For code outside a component; a component has `remember` from useKnownTags.
+ */
+export function rememberUsed(identity: TagIdentity): void {
+  const now = new Date().toISOString();
+  store.set((current) => rememberTag(current, {
+    handle: identity.handle, transport: identity.transport, eui: Array.from(identity.eui), firstSeen: now, lastSeen: now,
+  }));
+}
+
 export const knownTagTransport = (tag: KnownTag): TagTransport['id'] => tag.transport ?? 'bluetooth';
 
+/** The order a tag known several ways is reached in. */
+const ROUTE_ORDER: readonly TagTransport['id'][] = ['helper', 'bluetooth', 'serial'];
+
 /**
- * How to reach a tag by its address: Bluetooth when this browser knows it that way, else USB.
+ * How to reach a tag by its address: through the TotTag Helper when it knows the tag, else Bluetooth
+ * through the browser, else USB.
  *
  * Bluetooth first, because a tag on its charger is the normal case and USB needs a cable to this
- * computer that is probably no longer there.
+ * computer that is probably no longer there; and the helper before the browser, because it needs no
+ * chooser and no grant. `usable` says which ways this page can use now: a tag known only in ways it
+ * cannot is still returned, so that the page can say what to do about it.
  */
-export function routeFor(tags: readonly KnownTag[], eui: Uint8Array | readonly number[]): KnownTag | null {
+export function routeFor(
+  tags: readonly KnownTag[],
+  eui: Uint8Array | readonly number[],
+  usable: (transport: TagTransport['id']) => boolean = () => true,
+): KnownTag | null {
   const key = formatEui(Uint8Array.from(eui));
   const matching = tags.filter((tag) => formatEui(Uint8Array.from(tag.eui)) === key);
-  return matching.find((tag) => knownTagTransport(tag) === 'bluetooth') ?? matching[0] ?? null;
+  for (const transport of ROUTE_ORDER) {
+    const found = usable(transport) ? matching.find((tag) => knownTagTransport(tag) === transport) : undefined;
+    if (found) return found;
+  }
+  return matching[0] ?? null;
 }
 
 /**

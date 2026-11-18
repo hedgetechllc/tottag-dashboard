@@ -1,6 +1,7 @@
-// What the radio check shows, whichever way its data arrived: a card per tag, the link matrix, and the table of
-// where the tags were. Shared by the check from downloaded logs and the live check over Bluetooth, so the two
-// cannot drift into showing the same result differently.
+// What the radio check shows, whichever way its data arrived: a card per tag and the link matrix, shared by the
+// check from downloaded logs and the live check over Bluetooth, so the two cannot drift into showing the same
+// result differently. And where each tag is, which only the live check asks for, in its table of tags: a
+// deployment's logs say nothing about where the tags were.
 
 import { useEffect, useMemo, useState } from 'react';
 import type { RadioCheckDevice, RadioCheckLink, RadioVerdict } from '@tottag/schema';
@@ -48,59 +49,56 @@ export function usePositions(storageKey: string | null) {
   return { text, positions, update };
 }
 
-export function PositionsPanel({ devices, positions }: {
-  devices: readonly RadioDevice[];
+/** What entering positions does, said once wherever they are entered. */
+export const POSITIONS_NOTE = 'Where each tag is, if you like: in meters, from any corner. With at least three, the check works out whether one tag reads long or short on every link.';
+
+/** One tag's X and Y, as two cells of a table row that names the tag. */
+export function PositionCells({ uid, label, positions }: {
+  uid: number;
+  label: string;
   positions: ReturnType<typeof usePositions>;
 }) {
   const { text, update } = positions;
+  return (
+    <>
+      {(['x', 'y'] as const).map((axis) => (
+        <td key={axis}>
+          <input
+            className="rtable__input" inputMode="decimal" aria-label={`${label} ${axis.toUpperCase()} in meters`}
+            value={text[uid]?.[axis] ?? ''}
+            onChange={(event) => update({ ...text, [uid]: { x: text[uid]?.x ?? '', y: text[uid]?.y ?? '', [axis]: event.target.value } })}
+          />
+        </td>
+      ))}
+    </>
+  );
+}
+
+/** Filling every tag's position in at once, for tags set out in a circle or a line, and clearing them. */
+export function PositionShortcuts({ uids, positions }: { uids: readonly number[]; positions: ReturnType<typeof usePositions> }) {
+  const { update } = positions;
   const [radius, setRadius] = useState('1');
   const [spacing, setSpacing] = useState('1');
   return (
-    <section className="panel">
-      <h2 className="panel__title">Where the tags were</h2>
-      <p className="panel__note">
-        Optional. In meters, from any corner you like. With at least three positions, the check works
-        out whether one tag reads long or short on every link.
-      </p>
-      <table className="rtable">
-        <thead><tr><th>Tag</th><th>X (m)</th><th>Y (m)</th></tr></thead>
-        <tbody>
-          {devices.map((device) => (
-            <tr key={device.uid}>
-              <td>{device.label}{device.label !== device.name && <span className="tag-id"> {device.name}</span>}</td>
-              {(['x', 'y'] as const).map((axis) => (
-                <td key={axis}>
-                  <input
-                    className="rtable__input" inputMode="decimal" aria-label={`${device.label} ${axis.toUpperCase()} in meters`}
-                    value={text[device.uid]?.[axis] ?? ''}
-                    onChange={(event) => update({ ...text, [device.uid]: { x: text[device.uid]?.x ?? '', y: text[device.uid]?.y ?? '', [axis]: event.target.value } })}
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="actions">
-        <label className="inline-field">
-          Circle of radius
-          <input className="rtable__input" inputMode="decimal" value={radius} onChange={(event) => setRadius(event.target.value)} /> m
-        </label>
-        <button type="button" className="button button--quiet"
-          onClick={() => update(fromPositions(circlePositions(devices.map((b) => b.uid), Number.parseFloat(radius) || 1)))}>
-          Fill in a circle
-        </button>
-        <label className="inline-field">
-          Line spaced
-          <input className="rtable__input" inputMode="decimal" value={spacing} onChange={(event) => setSpacing(event.target.value)} /> m
-        </label>
-        <button type="button" className="button button--quiet"
-          onClick={() => update(fromPositions(linePositions(devices.map((b) => b.uid), Number.parseFloat(spacing) || 1)))}>
-          Fill in a line
-        </button>
-        <button type="button" className="button button--quiet" onClick={() => update({})}>Clear positions</button>
-      </div>
-    </section>
+    <div className="actions">
+      <label className="inline-field">
+        Circle of radius
+        <input className="rtable__input" inputMode="decimal" value={radius} onChange={(event) => setRadius(event.target.value)} /> m
+      </label>
+      <button type="button" className="button button--quiet"
+        onClick={() => update(fromPositions(circlePositions(uids, Number.parseFloat(radius) || 1)))}>
+        Fill in a circle
+      </button>
+      <label className="inline-field">
+        Line spaced
+        <input className="rtable__input" inputMode="decimal" value={spacing} onChange={(event) => setSpacing(event.target.value)} /> m
+      </label>
+      <button type="button" className="button button--quiet"
+        onClick={() => update(fromPositions(linePositions(uids, Number.parseFloat(spacing) || 1)))}>
+        Fill in a line
+      </button>
+      <button type="button" className="button button--quiet" onClick={() => update({})}>Clear positions</button>
+    </div>
   );
 }
 

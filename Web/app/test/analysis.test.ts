@@ -9,9 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
 import { parseExperimentDetails, ROUNDS_PER_MINUTE, type DailyRow, type RebootEvent } from '@tottag/schema';
-import { buildReport } from '../src/features/deployment.ts';
+import { buildReport, openLogTags } from '../src/features/deployment.ts';
 import { explainRestart } from '../src/features/plainLanguage.ts';
-import { logName, logTag, tagRef } from '../src/features/tagNames.ts';
+import { addressInName, logName, logTag, nameMatches, tagRef } from '../src/features/tagNames.ts';
 import { tableLines, timeTogetherCsv, timeTogetherFilename } from '../src/features/timeTogether.ts';
 import { releaseLogs, requestDailyStats, requestRangeWindow } from '../src/lib/parseAsync.ts';
 import type { LoadedLog } from '../src/ports/logSource.ts';
@@ -46,6 +46,19 @@ test('daily figures and windows come back for a kept log, and stop once it is le
   releaseLogs([boot.id]);
   assert.equal(await requestDailyStats(boot.id, { timezone: 'UTC', peers: [peer], touchingMm: 1, cutoffMm: 2 }), null,
     'a log let go of says so rather than answering with nothing');
+});
+
+test('the tags whose logs are open are known by the address in their names, so the list of tags can set them aside', () => {
+  // watchdog.ttg was written before a log said which tag wrote it, and its file name does not say either
+  assert.deepEqual([...openLogTags([boot, watchdog])], ['02:02']);
+});
+
+test('a tag is found by any way of typing the address in its name', () => {
+  assert.equal(addressInName('TotTag 02:31'), '02:31');
+  assert.equal(addressInName('TotTag 0b:f3'), '0B:F3');
+  assert.equal(addressInName('TotTag-31'), null, 'a name from before tags were named by their address');
+  for (const typed of ['02:31', '0231', '02 31', '31', 'tottag 02', '']) assert.ok(nameMatches('TotTag 02:31', typed), typed);
+  for (const typed of ['02:32', '3102']) assert.ok(!nameMatches('TotTag 02:31', typed), typed);
 });
 
 test('every restart in the fixtures is explained in plain words', () => {

@@ -14,10 +14,10 @@ const inside = (pairs: ArrayLike<number>, t: number) => {
   return false;
 };
 
-/** What a tag was doing at an instant, in words. */
+/** What a tag was doing at an instant, in words: the topmost bar there, as they are drawn. */
 function stateAt(story: TagStory, scheduled: number[], t: number): string {
-  if (inside(story.recording, t)) return 'Recording';
   if (inside(story.charging, t)) return 'On the charger';
+  if (inside(story.recording, t)) return 'Recording';
   if (inside(story.missed, t)) return 'Not recording, though scheduled to';
   if (t < story.first || t > story.last) return 'Outside its log';
   return inside(scheduled, t) ? 'Not recording' : 'Outside its daily hours';

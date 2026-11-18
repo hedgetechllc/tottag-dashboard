@@ -1,14 +1,15 @@
 import { useCallback, useState } from 'react';
 import { formatEui, tagName } from '@tottag/schema';
-import { webBluetoothTransport } from '../adapters/webBluetooth.ts';
 import { webSerialTransport } from '../adapters/webSerial.ts';
 import { ConfirmButton } from '../components/ConfirmButton.tsx';
 import { LiveRanges, useLiveRanges } from '../components/LiveRanges.tsx';
 import { TagDetails } from '../components/TagFacts.tsx';
 import { assessSnapshot, mayHoldData, storedState } from '../features/tagStatus.ts';
-import { describeKnownTag, knownTagTransport, routeFor, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
+import { describeKnownTag, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
 import { useDownloaded, useTagChecks } from '../features/useTagRecords.ts';
-import { errorText, transportFor, unlistedNote, unreachableMessage, useReachableTags, withTag } from '../lib/tagAccess.ts';
+import {
+  bluetoothTransport, connectTo, errorText, routeTo, unlistedNote, unreachableMessage, useReachableTags, withTag,
+} from '../lib/tagAccess.ts';
 import { useNow } from '../lib/useNow.ts';
 import type { TagConnection, TagTransport } from '../ports/tagTransport.ts';
 
@@ -27,7 +28,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
 }) {
   const { tags: knownTags, remember } = useKnownTags();
   const reachableTags = useReachableTags(knownTags);
-  const unlisted = unlistedNote(knownTags.length, reachableTags.length);
+  const unlisted = unlistedNote(knownTags, reachableTags.length);
   const checks = useTagChecks();
   const { downloadedAt } = useDownloaded();
   const now = useNow(15_000);
@@ -37,7 +38,10 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
   const [message, setMessage] = useState<string | null>(null);
   const liveRanges = useLiveRanges();
 
-  const bluetoothReason = webBluetoothTransport.unavailableReason();
+  const bluetoothReason = bluetoothTransport().unavailableReason();
+  // The helper's list has every tag nearby or plugged in, so neither the browser's USB picker nor the
+  // list of tags it knows is needed while the helper runs
+  const helperRunning = bluetoothTransport().id === 'helper';
   const serialReason = webSerialTransport.unavailableReason();
 
   const read = useCallback(async (connection: TagConnection) => {
@@ -70,7 +74,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
   const run = useCallback(async (eui: readonly number[], doing: string, action: (connection: TagConnection) => Promise<void>) => {
     setError(null);
     setMessage(null);
-    const route = routeFor(knownTags, eui);
+    const route = routeTo(knownTags, eui);
     if (!route) { setError(unreachableMessage(eui, route)); return; }
     setBusy(doing);
     try {
@@ -92,16 +96,16 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
   const showLiveRanges = useCallback(async (eui: readonly number[]) => {
     setError(null);
     setMessage(null);
-    const route = routeFor(knownTags, eui);
+    const route = routeTo(knownTags, eui);
     if (!route) { setError(unreachableMessage(eui, route)); return; }
     setBusy('Connecting to the tag…');
     try {
-      const connection = await transportFor(route).connect(route.handle);
+      const connection = await connectTo(route);
       if (!connection) { setError(unreachableMessage(eui, route)); return; }
       if (!connection.liveRadio) {
         await connection.disconnect();
-        setError(knownTagTransport(route) === 'serial'
-          ? 'Live ranges come over Bluetooth. Pick this tag with "Pick a tag" first.'
+        setError(connection.identity.transport === 'serial'
+          ? 'Live ranges come over Bluetooth, which a tag plugged into a computer turns off. Unplug it, put it on its charger, and pick it with "Pick a tag".'
           : "This tag's firmware is too old to send live ranges. Updating its firmware will fix this.");
         return;
       }
@@ -130,13 +134,15 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
           </p>
           <div className="actions">
             <button type="button" className="button" disabled={!!bluetoothReason || !!busy} title={bluetoothReason ?? undefined}
-              onClick={() => void pickNew(webBluetoothTransport)}>Pick a tag</button>
-            <button type="button" className="button button--quiet" disabled={!!serialReason || !!busy} title={serialReason ?? undefined}
-              onClick={() => void pickNew(webSerialTransport)}>Pick a tag plugged in by USB</button>
+              onClick={() => void pickNew(bluetoothTransport())}>Pick a tag</button>
+            {!helperRunning && (
+              <button type="button" className="button button--quiet" disabled={!!serialReason || !!busy} title={serialReason ?? undefined}
+                onClick={() => void pickNew(webSerialTransport)}>Pick a tag plugged in by USB</button>
+            )}
           </div>
-          {reachableTags.length > 0 && (
+          {!helperRunning && reachableTags.length > 0 && (
             <>
-              <h3 className="panel__subtitle">Tags this browser knows</h3>
+              <h3 className="panel__subtitle">Tags used recently</h3>
               <ul className="chips">
                 {reachableTags.map((tag) => {
                   const active = selected && formatEui(Uint8Array.from(tag.eui)) === formatEui(Uint8Array.from(selected));
@@ -151,7 +157,7 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
               </ul>
             </>
           )}
-          {unlisted && <p className="panel__note">{unlisted}</p>}
+          {!helperRunning && unlisted && <p className="panel__note">{unlisted}</p>}
           {busy && <p className="banner banner--info" role="status">{busy}</p>}
           {error && <p className="banner banner--crit" role="alert">{error}</p>}
           {message && <p className="banner banner--info" role="status">{message}</p>}

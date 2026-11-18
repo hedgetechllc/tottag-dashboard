@@ -1,0 +1,79 @@
+name: TotTag Helper
+
+# The helper's vet and unit tests on every platform, and a build the way a developer builds it
+# (Web/tools/helper.mjs; on macOS with the Info.plist linked in). The tests need no Bluetooth and
+# no tag: they speak to the helper only with requests that do not touch either.
+#
+# npm run release:helper tags a release only once this has passed on main for the helper's code
+# as it is then; the release workflow (tottag-helper-release.yml) does not run the tests again.
+
+# Not for the notes, which change nothing that is built.
+on:
+  push:
+    paths:
+      - 'Web/tottag-helper/**'
+      - '!Web/tottag-helper/**/*.md'
+      - 'Web/tools/helper.mjs'
+      - 'Web/extension/manifest.json'
+      - '.github/workflows/tottag-helper.yml'
+  pull_request:
+    paths:
+      - 'Web/tottag-helper/**'
+      - '!Web/tottag-helper/**/*.md'
+      - 'Web/tools/helper.mjs'
+      - 'Web/extension/manifest.json'
+      - '.github/workflows/tottag-helper.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch supersedes a run still going.
+concurrency:
+  group: tottag-helper-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: Web/tottag-helper
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: Web/tottag-helper/go.mod
+          cache: false
+
+      - name: Vet and unit tests
+        shell: bash
+        run: |
+          go vet ./...
+          go test ./...
+
+      # The extension's ID, pinned by the key in its manifest, is written into the helper's
+      # registration and the Linux package's; a new key without a new helper locks the
+      # extension out.
+      - name: Extension ID matches
+        if: runner.os == 'Linux'
+        working-directory: Web
+        run: node tools/helper.mjs check-extension-id
+
+      - name: Build
+        working-directory: Web
+        run: node tools/helper.mjs build
+
+      - name: It runs, and on macOS carries its Info.plist
+        shell: bash
+        run: |
+          ./dist/tottag-helper version
+          if [ "$RUNNER_OS" = macOS ]; then
+            launchctl plist __TEXT,__info_plist dist/tottag-helper | grep NSBluetoothAlwaysUsageDescription
+          fi

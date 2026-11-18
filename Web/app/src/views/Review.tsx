@@ -6,6 +6,7 @@ import { DownloadFromTag } from '../components/DownloadFromTag.tsx';
 import { ImportPanel } from '../components/ImportPanel.tsx';
 import { StudyClock } from '../components/StudyClock.tsx';
 import { DEFAULT_SETTINGS, type StudySettings } from '../features/chartData.ts';
+import { openLogTags } from '../features/deployment.ts';
 import { groupDeployments, type Deployment } from '../features/studyClock.ts';
 import type { LogsApi } from '../lib/useLogs.ts';
 import { CompareTags } from './CompareTags.tsx';
@@ -25,8 +26,10 @@ const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
 
 /** Getting logs off tags or off disk, seeing at a glance whether each one is sound, and looking into the data. */
 export function Review({ logs, timezone }: { logs: LogsApi; timezone: string }) {
-  const { reports, ordered, counts, failures, records, busy, saved, unsaved, saveError, onLoaded, saveLog, openFolder } = logs;
+  const { reports, ordered, counts, failures, records, busy, saved, unsaved, saveError, onLoaded, saveLog, openFolder,
+    folder, canChooseDownloadFolder, chooseDownloadFolder, allowDownloadFolder, addDownload } = logs;
   const hasLogs = reports.length > 0;
+  const openTags = useMemo(() => openLogTags(reports), [reports]);
 
   // The setup page's zone is only the fallback: a deployment whose record is open uses the record's.
   const { deployments, unreadable } = useMemo(() => groupDeployments(ordered, records, timezone), [ordered, records, timezone]);
@@ -70,7 +73,8 @@ export function Review({ logs, timezone }: { logs: LogsApi; timezone: string }) 
       {saveError && <p className="banner banner--crit">Could not save: {saveError}</p>}
 
       <div className="review__intake">
-        <DownloadFromTag busy={busy} onDownloaded={(log) => void onLoaded({ loaded: [log], failed: [] })} />
+        <DownloadFromTag busy={busy} openTags={openTags} onDownloaded={addDownload} folder={folder} canChooseFolder={canChooseDownloadFolder}
+          onChooseFolder={chooseDownloadFolder} onAllowFolder={allowDownloadFolder} />
         <ImportPanel onLoaded={(result) => void onLoaded(result)} onOpenFolder={() => void openFolder()} busy={busy} compact={hasLogs} />
       </div>
 
