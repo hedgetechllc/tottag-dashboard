@@ -103,8 +103,12 @@ export interface TagTransport {
    * something does not pay for a second connection. The caller owns it and must disconnect.
    * Identifying at all costs a connection, because Web Bluetooth never exposes a MAC address — the
    * EUI has to be read from GATT System ID.
+   *
+   * `onPicked` is called once a device has been picked and the chooser has closed, before connecting
+   * to it. Connecting and identifying take a few seconds, during which nothing else on the page would
+   * change, so this is where a page says that it is connecting.
    */
-  requestDevice(): Promise<TagConnection | null>;
+  requestDevice(onPicked?: () => void): Promise<TagConnection | null>;
 
   /**
    * Reconnect to a device already granted to this origin, with no chooser.

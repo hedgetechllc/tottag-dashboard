@@ -70,8 +70,8 @@
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  /* Lined up with the content below it, which is centred once the window is wider than --content-max */
-  padding: 12px max(32px, calc((100% - var(--content-max)) / 2 + 32px));
+  /* The same gutter as the content below it, so the title lines up with its left edge and the actions with its right */
+  padding: 12px 32px;
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
@@ -79,7 +79,7 @@
 .topbar__title { font-size: var(--text-lg); font-weight: var(--weight-semibold); letter-spacing: -0.01em; }
 .topbar__actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-.content { padding: 28px 32px 56px; width: 100%; max-width: var(--content-max); margin-inline: auto; }
+.content { padding: 28px 32px 56px; width: 100%; }
 .content > div > * + * { margin-top: 20px; }
 
 @media (max-width: 860px) {

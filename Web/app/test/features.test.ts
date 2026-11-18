@@ -179,7 +179,7 @@ test('an imported file keeps its bytes released and a downloaded one keeps them'
   assert.equal(live.name, live.saveName);
 });
 
-test('a downloaded log keeps its label in the file name, less only what a file name cannot hold', async () => {
+test('a downloaded log keeps its label in the file name, a colon as a dash and less only what a file name cannot hold', async () => {
   // The same rule as the desktop tool's file_label(), so both name one tag's log identically.
   const { encodeExperimentDetails } = await import('@tottag/schema');
   const eui = (low: number) => Uint8Array.from([low, 0x02, 0x42, 0xe5, 0x98, 0xc0]);
@@ -191,12 +191,15 @@ test('a downloaded log keeps its label in the file name, less only what a file n
       { eui: eui(0x03), label: '../' },
       { eui: eui(0x04), label: '' },
       { eui: eui(0x05), label: ' .Child_A. ' },
+      { eui: eui(0x06), label: '02:06' },
     ],
   });
   assert.equal(labelForDevice(labelled, 0x01), 'Parent 1');
-  assert.equal(labelForDevice(labelled, 0x02), 'MamáPapá 1');
-  assert.equal(labelForDevice(labelled, 0x03), '3', 'a label with nothing safe in it falls back to the bare ID');
-  assert.equal(labelForDevice(labelled, 0x04), '4', 'so does no label at all');
+  assert.equal(labelForDevice(labelled, 0x02), 'MamáPapá- 1');
+  assert.equal(labelForDevice(labelled, 0x03), '02-03', 'a label with nothing safe in it falls back to the last two parts of the address');
+  assert.equal(labelForDevice(labelled, 0x04), '02-04', 'so does no label at all');
+  assert.equal(canonicalLogName({ details: labelled, experimentStartTime: 1787839200, deviceUid: 0x04, fallback: 'x.ttg' }), '02-04_1787839200.ttg');
   assert.equal(labelForDevice(labelled, 0x05), 'Child_A');
+  assert.equal(labelForDevice(labelled, 0x06), '02-06', 'the default label, its colon a dash like any other');
   assert.equal(canonicalLogName({ details: labelled, experimentStartTime: 1787839200, deviceUid: 0x01, fallback: 'x.ttg' }), 'Parent 1_1787839200.ttg');
 });

@@ -4,7 +4,7 @@
 // expected, and did every tag see every other — need the deployment's own schedule and roster, which
 // every log carries in its details block. This lays them out against what the log actually recorded.
 
-import { identifyRadioLog, parseExperimentDetails, tagName, type ExperimentDetails } from '@tottag/schema';
+import { shownLabel, identifyRadioLog, parseExperimentDetails, tagName, type ExperimentDetails } from '@tottag/schema';
 import type { DeviceReport } from './deployment.ts';
 
 export interface PeerLine {
@@ -64,7 +64,7 @@ export function summariseLog(report: DeviceReport): LogSummary {
     scheduled.uids.forEach((eui, i) => {
       const peer = eui[0]!;
       if (peer === uid) return;
-      peers.push({ uid: peer, name: scheduled!.labels[i]?.trim() || tagName(eui), ranges: seen.get(peer) ?? 0, scheduled: true });
+      peers.push({ uid: peer, name: shownLabel(scheduled!.labels[i], eui) ?? tagName(eui), ranges: seen.get(peer) ?? 0, scheduled: true });
     });
   }
   for (const [peer, ranges] of seen) {
@@ -77,7 +77,7 @@ export function summariseLog(report: DeviceReport): LogSummary {
     selfKnown: uid !== null,
     tag: own ? tagName(own) : null,
     eui: own,
-    label: index >= 0 ? scheduled!.labels[index]?.trim() || null : null,
+    label: index >= 0 ? shownLabel(scheduled!.labels[index], scheduled!.uids[index]!) : null,
     scheduled,
     firstRecord,
     lastRecord,

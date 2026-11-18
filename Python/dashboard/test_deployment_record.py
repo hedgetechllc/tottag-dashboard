@@ -189,6 +189,12 @@ class FindingALogsRecord(unittest.TestCase):
       self.assertIs(deployment_record.match_record([self.record], start_time=START, label='CG1'), self.record)
       self.assertIsNone(deployment_record.match_record([self.record], start_time=START, label='Nobody'))
 
+   def test_an_unlabeled_tottag_s_log_is_known_by_the_last_two_bytes_of_its_id_or_by_its_old_decimal_name(self):
+      record = record_for(details(devices=((S1, b'S1'), (CG1, b''))))
+      self.assertIs(deployment_record.match_record([record], start_time=START, label='22-12'), record)
+      self.assertIs(deployment_record.match_record([record], start_time=START, label='18'), record, 'as downloads named it before')
+      self.assertIsNone(deployment_record.match_record([record], start_time=START, label='22-13'))
+
    def test_a_pkl_is_matched_through_the_ttg_saved_beside_it(self):
       folder = tempfile.mkdtemp()
       self.addCleanup(shutil.rmtree, folder)

@@ -55,17 +55,25 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
   const minutes = Number(minutesText);
   const minutesValid = Number.isInteger(minutes) && minutes >= MIN_MINUTES && minutes <= MAX_MINUTES;
   const [error, setError] = useState<string | null>(null);
+  /** Something is under way that another click could collide with: adding tags, or starting the test. */
   const [busy, setBusy] = useState(false);
+  /** What is under way, for as long as nothing else on the page shows it. */
+  const [status, setStatus] = useState<string | null>(null);
+  const [stopping, setStopping] = useState(false);
 
   const addFromChooser = async () => {
     setError(null);
+    setBusy(true);
     try {
-      const connection = await webBluetoothTransport.requestDevice();
+      const connection = await webBluetoothTransport.requestDevice(() => setStatus('Connecting to the tag…'));
       if (!connection) return;
       const refused = test.add(connection, labelFor(connection.identity.eui));
       if (refused) { setError(refused); void connection.disconnect(); }
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setStatus(null);
+      setBusy(false);
     }
   };
 
@@ -73,9 +81,10 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
     setError(null);
     setBusy(true);
     const missing: string[] = [];
+    const toAdd = reachableTags.filter((tag) => !state.devices.some((device) => device.handle === tag.handle));
     try {
-      for (const tag of reachableTags) {
-        if (state.devices.some((device) => device.handle === tag.handle)) continue;
+      for (const [index, tag] of toAdd.entries()) {
+        setStatus(`Connecting to ${tagName(tag.eui)} (${index + 1} of ${toAdd.length})…`);
         const connection = await webBluetoothTransport.connect(tag.handle);
         if (!connection) { missing.push(tagName(tag.eui)); continue; }
         const refused = test.add(connection, labelFor(Uint8Array.from(tag.eui)));
@@ -83,8 +92,14 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
       }
       if (missing.length) setError(`Could not add: ${missing.join(', ')}. A tag has to be on its charger, or in a running deployment, to be reached.`);
     } finally {
+      setStatus(null);
       setBusy(false);
     }
+  };
+
+  const stop = async () => {
+    setStopping(true);
+    try { await test.stop(); } finally { setStopping(false); }
   };
 
   const start = async () => {
@@ -106,7 +121,7 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
   return (
     <>
       {state.phase !== 'setup' ? (
-        <TestStatus state={state} onStop={() => void test.stop()} onAgain={() => { setError(null); test.again(); }} />
+        <TestStatus state={state} stopping={stopping} onStop={() => void stop()} onAgain={() => { setError(null); test.again(); }} />
       ) : (
         <section className="panel">
           <h2 className="panel__title">Check tags' radios live</h2>
@@ -134,11 +149,14 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
             </label>
             <button type="button" className="button" disabled={state.devices.length < 2 || busy || !minutesValid} onClick={() => void start()}>Start test</button>
           </div>
+          {status && <p className="banner banner--info" role="status">{status}</p>}
           {error && <p className="banner banner--crit">{error}</p>}
         </section>
       )}
 
-      {state.devices.length > 0 && <DeviceTable devices={state.devices} onRemove={state.phase === 'setup' ? (handle) => test.remove(handle) : null} />}
+      {state.devices.length > 0 && (
+        <DeviceTable devices={state.devices} onRemove={state.phase === 'setup' ? (handle) => test.remove(handle) : null} busy={busy} />
+      )}
 
       {truncated && (
         <p className="banner banner--warn">
@@ -190,7 +208,13 @@ const minutesSeconds = (seconds: number) => `${Math.floor(seconds / 60)}:${Strin
  * The results below look the same whether the test is still running or over, so this has to say which, from
  * anywhere on the page.
  */
-function TestStatus({ state, onStop, onAgain }: { state: LiveTestState; onStop: () => void; onAgain: () => void }) {
+function TestStatus({ state, stopping, onStop, onAgain }: {
+  state: LiveTestState;
+  /** Each tag is being told to stop, which takes a moment per tag before the test says it has ended. */
+  stopping: boolean;
+  onStop: () => void;
+  onAgain: () => void;
+}) {
   const now = useNow(1000);
   const { phase, startTime, endTime, finishedAt, stoppedEarly } = state;
   const finished = phase === 'finished';
@@ -199,7 +223,8 @@ function TestStatus({ state, onStop, onAgain }: { state: LiveTestState; onStop: 
   const progress = finished ? 1 : startTime !== null && duration ? Math.min(1, Math.max(0, (now - startTime) / duration)) : null;
   const endedAt = finishedAt === null ? '' : new Date(finishedAt * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
-  const title = finished ? (stoppedEarly ? 'Test stopped' : 'Test finished')
+  const title = stopping ? 'Stopping the test on each tag…'
+    : finished ? (stoppedEarly ? 'Test stopped' : 'Test finished')
     : startTime === null ? 'Reaching the tags…'
     : phase === 'starting' ? 'Starting the test on each tag…'
     : left === 0 ? 'Finishing…'
@@ -218,9 +243,9 @@ function TestStatus({ state, onStop, onAgain }: { state: LiveTestState; onStop: 
         {left !== null && duration !== null && (
           <p className="run-status__clock"><strong>{minutesSeconds(left)}</strong> left of {minutesSeconds(duration)}</p>
         )}
-        {finished
+        {finished && !stopping
           ? <button type="button" className="button" onClick={onAgain}>Run another test</button>
-          : <button type="button" className="button button--quiet" onClick={onStop}>Stop test</button>}
+          : <button type="button" className="button button--quiet" onClick={onStop} disabled={stopping}>{stopping ? 'Stopping…' : 'Stop test'}</button>}
       </div>
       <div className="transfer__bar" role="progressbar" aria-label="Test progress" aria-valuemin={0} aria-valuemax={100}
         aria-valuenow={progress === null ? undefined : Math.round(progress * 100)}>
@@ -231,9 +256,11 @@ function TestStatus({ state, onStop, onAgain }: { state: LiveTestState; onStop: 
   );
 }
 
-function DeviceTable({ devices, onRemove }: {
+function DeviceTable({ devices, onRemove, busy }: {
   devices: readonly LiveDevice[];
   onRemove: ((handle: string) => void) | null;
+  /** Tags are being added or the test started, so the list must not change underneath that. */
+  busy: boolean;
 }) {
   return (
     <section className="panel">
@@ -263,7 +290,7 @@ function DeviceTable({ devices, onRemove }: {
                 <td>{device.roundsPerSecond === null ? '—' : device.roundsPerSecond.toFixed(2)}</td>
                 <td>{total ? formatPercent(stats!.rxFailed / total) : '—'}</td>
                 <td>{antennas}</td>
-                <td>{onRemove && <button type="button" className="link link--quiet" onClick={() => onRemove(device.handle)}>Remove</button>}</td>
+                <td>{onRemove && <button type="button" className="link link--quiet" onClick={() => onRemove(device.handle)} disabled={busy}>Remove</button>}</td>
               </tr>
             );
           })}

@@ -145,12 +145,20 @@ test('a log names its device by itself, by the transport, or by its file name', 
   assert.equal(identifyRadioLog(base, 'x.ttg', 0x02), 0x02);
   assert.equal(identifyRadioLog(base, 'bob_1791288000.ttg'), 0x0b);
   assert.equal(identifyRadioLog(base, '0B_1791288000.ttg'), 0x0b);
+  // An unlabeled tag's log, named after the last two parts of its address
+  assert.equal(identifyRadioLog({ ...base, deploymentLabels: ['Alice', ''] }, '02-0B_1791288000.ttg'), 0x0b);
+  assert.equal(identifyRadioLog({ ...base, deploymentLabels: ['Alice', '02:0B'] }, '02-0B_1791288000.ttg'), 0x0b, 'or labeled with it');
+  assert.equal(identifyRadioLog(base, '02-0C_1791288000.ttg'), null);
+  // One saved by an earlier download, which named it by its one-byte ID in decimal
+  assert.equal(identifyRadioLog({ ...base, deploymentUids: [0x02, 0x31] }, '49_1791288000.ttg'), 0x31);
+  assert.equal(identifyRadioLog({ ...base, deploymentUids: [0x0b, 0x11] }, '11_1791288000.ttg'), 0x0b, 'digits alone are decimal');
   assert.equal(identifyRadioLog(base, 'unrelated.ttg'), null);
 });
 
 test('a log saved under a label with spaces, accents, unsafe characters or underscores is still recognized by its name', async () => {
   const { fileLabel } = await import('../src/deployment.ts');
-  assert.equal(fileLabel('Mamá/Papá: 1'), 'MamáPapá 1');
+  assert.equal(fileLabel('Mamá/Papá: 1'), 'MamáPapá- 1', 'a colon becomes a dash');
+  assert.equal(fileLabel('02:31'), '02-31');
   assert.equal(fileLabel('  ..hidden.. '), 'hidden');
   assert.equal(fileLabel('a\u0007b"c<d>e|f?g*h\\i'), 'abcdefghi');
   assert.equal(fileLabel('x'.repeat(40)).length, 16);
@@ -159,6 +167,7 @@ test('a log saved under a label with spaces, accents, unsafe characters or under
     firstMs: 0, lastMs: 0, binMs: LOG_BIN_MS, rowsByBin: [], peers: [], diagnostics: null, aborts: 0,
   };
   assert.equal(identifyRadioLog(base, 'Parent 1_1791288000.ttg'), 0x02);
-  assert.equal(identifyRadioLog(base, 'MamáPapá 1_1791288000.ttg'), 0x0b);
+  assert.equal(identifyRadioLog(base, 'MamáPapá- 1_1791288000.ttg'), 0x0b);
+  assert.equal(identifyRadioLog(base, 'MamáPapá 1_1791288000.ttg'), 0x0b, 'as saved before a colon became a dash');
   assert.equal(identifyRadioLog(base, 'Child_A_1791288000.ttg'), 0x3e);
 });

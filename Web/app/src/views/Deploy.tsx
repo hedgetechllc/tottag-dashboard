@@ -58,6 +58,8 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
 
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  /** A tag is being picked, connected to or read, so another cannot be added until it is done. */
+  const [adding, setAdding] = useState(false);
   const [writing, setWriting] = useState(false);
   const [progress, setProgress] = useState<ProgressEntry[]>([]);
   const [showKnown, setShowKnown] = useState(false);
@@ -116,19 +118,22 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
 
   const addNewTag = useCallback(async (transport: TagTransport) => {
     setNotice(null);
+    setAdding(true);
     try {
       // Which tag was picked cannot be known before connecting: over Bluetooth the chooser shows only
       // advertised names and the address comes from GATT System ID; over USB it has to be asked for.
-      const connection = await transport.requestDevice();
+      const connection = await transport.requestDevice(() => setNotice({ tone: 'info', text: 'Connecting to the tag…' }));
       if (!connection) return;
       try {
         const { identity } = connection;
         remember(identity);
         // Read it while the link is open anyway, so its row says straight away what state it is in.
+        setNotice({ tone: 'info', text: `Reading ${tagName(identity.eui)}…` });
         await recordCheckFrom(connection).catch(() => null);
         if (draft.devices.some((device) => sameEui(device.eui, identity.eui))) {
           setNotice({ tone: 'info', text: `${tagName(identity.eui)} is already in this deployment.` });
         } else {
+          setNotice(null);
           addDevice({ eui: identity.eui, label: '' });
         }
       } finally {
@@ -137,6 +142,8 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
       }
     } catch (caught) {
       setNotice({ tone: 'error', text: errorText(caught) });
+    } finally {
+      setAdding(false);
     }
   }, [addDevice, draft.devices, recordCheckFrom, remember]);
 
@@ -361,9 +368,9 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
           </ol>
           <div className="actions">
             <button type="button" className="button" onClick={() => void addNewTag(webBluetoothTransport)}
-              disabled={!!bluetoothReason || writing} title={bluetoothReason ?? undefined}>Add a tag</button>
+              disabled={!!bluetoothReason || writing || adding} title={bluetoothReason ?? undefined}>Add a tag</button>
             <button type="button" className="button button--quiet" onClick={() => void addNewTag(webSerialTransport)}
-              disabled={!!serialReason || writing} title={serialReason ?? 'For a tag plugged into this computer with a USB cable'}>
+              disabled={!!serialReason || writing || adding} title={serialReason ?? 'For a tag plugged into this computer with a USB cable'}>
               Add a tag plugged in by USB
             </button>
             {reachableTags.length > 0 && (

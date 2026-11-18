@@ -122,11 +122,44 @@ def format_eui(uid):
    """'C0:98:E5:42:01:05' for an ID stored least-significant byte first."""
    return ':'.join(f'{b:02X}' for b in reversed(uid))
 
-UNSAFE_IN_FILE_NAMES = re.compile(r'[\\/:*?"<>|\x00-\x1f\x7f]')
+UNSAFE_IN_FILE_NAMES = re.compile(r'[\\/*?"<>|\x00-\x1f\x7f]')
 
 def file_label(label):
-   # Drops only what a file name cannot hold; must match fileLabel() in the browser tool's deployment.ts
-   return UNSAFE_IN_FILE_NAMES.sub('', label).strip(' .')[:LABEL_LENGTH]
+   """A label as it goes into a file name: a colon becomes a dash, so '02:31' is saved as '02-31', and the rest of what a
+   file name cannot hold is dropped; must match fileLabel() in the browser tool's deployment.ts."""
+   return UNSAFE_IN_FILE_NAMES.sub('', label.replace(':', '-')).strip(' .')[:LABEL_LENGTH]
+
+def legacy_file_label(label):
+   """A label as file names were made from it before a colon became a dash: the colon was dropped with the rest. Only for
+   recognizing a file saved then."""
+   return UNSAFE_IN_FILE_NAMES.sub('', label.replace(':', '')).strip(' .')[:LABEL_LENGTH]
+
+def default_label(uid):
+   """'02:31', the last two bytes of a TotTag's ID: the label a TotTag is given when none is typed for it; must match
+   defaultLabel() in the browser tool's deployment.ts."""
+   return f'{uid[1]:02X}:{uid[0]:02X}'
+
+def log_name(label, uid):
+   """What a TotTag's downloaded files are named after: its label as file_label() leaves it, which for the '02:31' a blank
+   label is written as is '02-31'. A label stored empty, by a deployment set up before blank labels were written, or with
+   nothing a file name can hold, is named as the default would be; must match logStem() in the browser tool's
+   deployment.ts."""
+   return file_label(label) or file_label(default_label(uid))
+
+def log_names(label, uid):
+   """Every name a log from this TotTag may have been saved under: what a download names it now, its label as written,
+   its label as file names were made before a colon became a dash, and, where that gave nothing to name a file after,
+   the bare decimal ID that downloads used then."""
+   names = {log_name(label, uid), label or default_label(uid), legacy_file_label(label) or str(uid[0])}
+   return names
+
+def parse_eui(text):
+   """The ID stored least-significant byte first from 'C0:98:E5:42:01:05', or None for anything else."""
+   try:
+      uid = list(reversed(bytes.fromhex(str(text).replace(':', ''))))
+   except ValueError:
+      return None
+   return uid if len(uid) == tottag_format.EUI_LEN else None
 
 
 # WRITING A RECORD ----------------------------------------------------------------------------------------------------
@@ -282,8 +315,7 @@ def log_identity(path, first_timestamp=None):
    if unpacked:
       start_time = unpacked['start_time']
       for uid, device_label in list(zip(unpacked['uids'], unpacked['labels']))[:unpacked['num_devices']]:
-         name = device_label or str(uid[0])
-         if label in (name, file_label(name) or str(uid[0])):
+         if label in log_names(device_label, uid):
             eui = format_eui(uid)
    return {'details': details, 'start_time': start_time, 'eui': eui, 'label': label}
 
@@ -303,7 +335,11 @@ def match_record(records, details=None, start_time=None, eui=None, label=None):
             return True
          if eui is None and label is not None:
             short_uid = str(int(device['shortUid'], 16)) if re.fullmatch(r'0x[0-9A-Fa-f]{1,2}', str(device.get('shortUid', ''))) else None
-            if label in (device.get('label'), file_label(device.get('label') or ''), short_uid) and label:
+            names = {device.get('label'), file_label(device.get('label') or ''), legacy_file_label(device.get('label') or ''), short_uid}
+            uid = parse_eui(device.get('eui'))
+            if uid:
+               names |= log_names(device.get('label') or '', uid)
+            if label and label in names:
                return True
       return False
    return newest([record for record in records if record['deployment'].get('startTime') == start_time and lists_device(record)])

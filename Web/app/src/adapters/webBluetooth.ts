@@ -98,6 +98,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<
 }
 
 /**
+ * What identifies each tag, by the browser's id for it, for this page session.
+ *
+ * Reading it costs three reads on every connection, and none of it changes while the page is open
+ * unless the tag is reflashed: picking a tag in the chooser always reads it again, which is how a
+ * reflashed tag's new firmware revision is picked up without a reload.
+ */
+const sessionIdentities = new Map<string, Pick<TagIdentity, 'eui' | 'firmware' | 'hardware'>>();
+
+/**
  * Copy into a buffer the Bluetooth API will accept.
  *
  * `Uint8Array` from the schema package is typed over `ArrayBufferLike`, which since TypeScript 5.7
@@ -460,32 +469,8 @@ class BluetoothTag implements TagConnection {
   }
 }
 
-async function openDevice(device: BluetoothDevice): Promise<TagConnection> {
-  if (!device.gatt) throw new Error('This device does not support GATT');
-  const server = await withTimeout(device.gatt.connect(), OPERATION_TIMEOUT_MS, 'Connecting');
-  const chars = new Map<string, BluetoothRemoteGATTCharacteristic>();
-
-  for (const [service, uuids] of [
-    [LIVE_STATS, [
-      BLE_UUID.BLE_LIVE_STATS_BATTERY_CHAR.uuid,
-      BLE_UUID.BLE_LIVE_STATS_TIMESTAMP_CHAR.uuid,
-      BLE_UUID.BLE_LIVE_STATS_FINDMYTOTTAG_CHAR.uuid,
-      BLE_UUID.BLE_LIVE_STATS_RANGING_CHAR.uuid,
-      BLE_UUID.BLE_LIVE_STATS_RADIO_CHAR.uuid,
-    ]],
-    [MAINTENANCE, [
-      BLE_UUID.BLE_MAINTENANCE_EXPERIMENT_CHAR.uuid,
-      BLE_UUID.BLE_MAINTENANCE_COMMAND_CHAR.uuid,
-      BLE_UUID.BLE_MAINTENANCE_DATA_CHAR.uuid,
-    ]],
-  ] as const) {
-    const handle = await server.getPrimaryService(service);
-    for (const uuid of uuids) {
-      try { chars.set(uuid, await handle.getCharacteristic(uuid)); } catch { /* optional on some builds */ }
-    }
-  }
-
-  // Identity comes from the Device Information Service, because Web Bluetooth never exposes a MAC.
+/** Who the tag is, from the Device Information Service, because Web Bluetooth never exposes a MAC. */
+async function readIdentity(server: BluetoothRemoteGATTServer): Promise<Pick<TagIdentity, 'eui' | 'firmware' | 'hardware'>> {
   let eui = new Uint8Array(EUI_LEN);
   let firmware: string | null = null;
   let hardware: string | null = null;
@@ -499,8 +484,51 @@ async function openDevice(device: BluetoothDevice): Promise<TagConnection> {
   } catch {
     throw new Error('This device did not report a System ID, so it cannot be identified as a TotTag.');
   }
+  return { eui, firmware, hardware };
+}
 
-  return new BluetoothTag(device, server, chars, { handle: device.id, eui, firmware, hardware, transport: 'bluetooth' });
+/**
+ * Connect and find everything this page uses on the tag.
+ *
+ * `identify` says whether to read the tag's identity again ('fresh', for a tag just picked in the
+ * chooser) or use the one remembered for this page session when there is one ('remembered').
+ */
+async function openDevice(device: BluetoothDevice, identify: 'fresh' | 'remembered'): Promise<TagConnection> {
+  if (!device.gatt) throw new Error('This device does not support GATT');
+  const server = await withTimeout(device.gatt.connect(), OPERATION_TIMEOUT_MS, 'Connecting');
+  try {
+    const chars = new Map<string, BluetoothRemoteGATTCharacteristic>();
+    for (const [service, uuids] of [
+      [LIVE_STATS, [
+        BLE_UUID.BLE_LIVE_STATS_BATTERY_CHAR.uuid,
+        BLE_UUID.BLE_LIVE_STATS_TIMESTAMP_CHAR.uuid,
+        BLE_UUID.BLE_LIVE_STATS_FINDMYTOTTAG_CHAR.uuid,
+        BLE_UUID.BLE_LIVE_STATS_RANGING_CHAR.uuid,
+        BLE_UUID.BLE_LIVE_STATS_RADIO_CHAR.uuid,
+      ]],
+      [MAINTENANCE, [
+        BLE_UUID.BLE_MAINTENANCE_EXPERIMENT_CHAR.uuid,
+        BLE_UUID.BLE_MAINTENANCE_COMMAND_CHAR.uuid,
+        BLE_UUID.BLE_MAINTENANCE_DATA_CHAR.uuid,
+      ]],
+    ] as const) {
+      // The first service asked for waits for the browser to discover every service on the tag, which
+      // is most of what a connection costs: about 0.7 s on macOS at the interval the tag asks for
+      const handle = await server.getPrimaryService(service);
+      for (const uuid of uuids) {
+        try { chars.set(uuid, await handle.getCharacteristic(uuid)); } catch { /* optional on some builds */ }
+      }
+    }
+
+    const remembered = identify === 'remembered' ? sessionIdentities.get(device.id) : undefined;
+    const identity = remembered ?? await readIdentity(server);
+    sessionIdentities.set(device.id, identity);
+    return new BluetoothTag(device, server, chars, { handle: device.id, ...identity, transport: 'bluetooth' });
+  } catch (error) {
+    // Nothing owns the connection until it is returned, so a failure here would otherwise leave it open
+    server.disconnect();
+    throw error;
+  }
 }
 
 export const webBluetoothTransport: TagTransport = {
@@ -525,7 +553,7 @@ export const webBluetoothTransport: TagTransport = {
     return () => { reachabilityListeners.delete(listener); };
   },
 
-  async requestDevice(): Promise<TagConnection | null> {
+  async requestDevice(onPicked?: () => void): Promise<TagConnection | null> {
     const api = bluetooth();
     if (!api) throw new Error(webBluetoothTransport.unavailableReason() ?? 'Bluetooth unavailable');
     try {
@@ -541,10 +569,11 @@ export const webBluetoothTransport: TagTransport = {
         filters: [{ namePrefix: 'TotTag' }],
         optionalServices: [LIVE_STATS, MAINTENANCE, DEVICE_INFO_SERVICE],
       });
+      onPicked?.();
       const known = sessionDevices.has(device.id);
       sessionDevices.set(device.id, device);
       if (!known) reachabilityChanged();
-      return await openDevice(device);
+      return await openDevice(device, 'fresh');
     } catch (error) {
       if (error instanceof DOMException && error.name === 'NotFoundError') return null;   // dismissed
       throw error;
@@ -563,7 +592,7 @@ export const webBluetoothTransport: TagTransport = {
       reachabilityChanged();
     }
     try {
-      return await openDevice(device);
+      return await openDevice(device, 'remembered');
     } catch {
       return null;   // out of range, asleep, or the grant has lapsed
     }

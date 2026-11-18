@@ -12,7 +12,7 @@
 // Nothing here, and nothing on screen, asks anyone to think about UTC.
 
 import {
-  clockChanges, deviceDailyWindow, describeTimezone, formatDateTime, formatDay, formatSpan, formatTimeOfDay,
+  clockChanges, defaultLabel, deviceDailyWindow, describeTimezone, formatDateTime, formatDay, formatSpan, formatTimeOfDay,
   isValidTimezone, localDailyWindow, parseTimeOfDay, timeOfDayInput, unixToWallClock, validateDeployment,
   wallClockToUnix, type ClockChangePolicy, type DeploymentConfig, type Problem,
 } from '@tottag/schema';
@@ -87,8 +87,14 @@ export function nextDraft(previous: DeploymentDraft, now: number): DeploymentDra
   };
 }
 
-/** What the tags are told. Times that are not yet complete come through as NaN, which validation reports. */
-export function draftToConfig(draft: DeploymentDraft): DeploymentConfig {
+/**
+ * What the tags are told. Times that are not yet complete come through as NaN, which validation reports.
+ *
+ * A tag whose label was left blank is told the last two parts of its address, `02:31`, so that every tag in a
+ * deployment has a label to be told apart by. `labels: 'as-typed'` leaves them as the form holds them, which is
+ * what validation reads, so that a label left blank is still pointed out.
+ */
+export function draftToConfig(draft: DeploymentDraft, { labels = 'written' }: { labels?: 'written' | 'as-typed' } = {}): DeploymentConfig {
   const zoneOk = isValidTimezone(draft.timezone);
   const startTime = zoneOk ? wallClockToUnix(draft.start, draft.timezone) : Number.NaN;
   const endTime = zoneOk ? wallClockToUnix(draft.end, draft.timezone) : Number.NaN;
@@ -114,7 +120,10 @@ export function draftToConfig(draft: DeploymentDraft): DeploymentConfig {
     useDailyTimes: draft.useDailyTimes,
     dailyStartTime: draft.useDailyTimes ? dailyStartTime : 0,
     dailyEndTime: draft.useDailyTimes ? dailyEndTime : 0,
-    devices: draft.devices.map((device) => ({ eui: device.eui, label: device.label })),
+    devices: draft.devices.map((device) => ({
+      eui: device.eui,
+      label: labels === 'written' && !device.label.trim() ? defaultLabel(device.eui) : device.label,
+    })),
   };
 }
 
@@ -122,7 +131,7 @@ const TIME_CODES = new Set(['missing-start', 'missing-end', 'end-before-start', 
 
 /** Everything wrong with the draft, worst first, including a time zone the browser does not recognise. */
 export function draftProblems(draft: DeploymentDraft, now: number): Problem[] {
-  const problems = validateDeployment(draftToConfig(draft), { now });
+  const problems = validateDeployment(draftToConfig(draft, { labels: 'as-typed' }), { now });
   if (isValidTimezone(draft.timezone)) return problems;
   // Without a zone no time can be placed, so complaints about the times would only be noise.
   return [

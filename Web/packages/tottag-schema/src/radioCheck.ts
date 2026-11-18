@@ -13,7 +13,7 @@
 //   - analyseRadio() runs on the page over the summaries of every device in the deployment.
 
 import { SCHEDULING_INTERVAL_US } from './constants.ts';
-import { fileLabel } from './deployment.ts';
+import { fileLabel, legacyFileLabel } from './deployment.ts';
 import { parseExperimentDetails, type ParseResult } from './log.ts';
 
 /** How long each bin of a summary made from a log covers. */
@@ -472,16 +472,23 @@ export function identifyRadioLog(
 ): number | null {
   if (summary.selfUid !== null) return summary.selfUid;
   if (deviceUid !== undefined && summary.deploymentUids.includes(deviceUid)) return deviceUid;
-  // A saved log is `{label}_{start}.ttg`, its label with only what a file name cannot hold dropped (fileLabel), so
-  // the label may itself contain an underscore.
+  // A saved log is `{label}_{start}.ttg`, its label as fileLabel leaves it, so the label may itself contain an
+  // underscore. Files saved before a colon became a dash have it dropped instead (legacyFileLabel).
   const base = name.replace(/\.[^.]*$/, '');
   const stems = [base.replace(/_\d+$/, ''), base.split('_')[0]!].map((stem) => stem.trim().toLowerCase());
   const byLabel = summary.deploymentLabels.findIndex((label) =>
-    stems.includes(label.trim().toLowerCase()) || stems.includes(fileLabel(label).toLowerCase()));
+    [label.trim(), fileLabel(label), legacyFileLabel(label)].some((candidate) => candidate && stems.includes(candidate.toLowerCase())));
   if (byLabel >= 0) return summary.deploymentUids[byLabel] ?? null;
+  // A tag whose label is stored empty is saved under the last two parts of its address, `02-31` (logStem); the
+  // second is its one-byte ID. Downloads before that named it by the one-byte ID in decimal, `49` for 0x31, so
+  // digits alone are read as decimal first; a stem with a hex letter in it, such as `0B`, can only be hexadecimal.
   const stem = stems[1]!;
-  const asHex = /^[0-9a-f]{1,2}$/.test(stem) ? Number.parseInt(stem, 16) : NaN;
-  return summary.deploymentUids.includes(asHex) ? asHex : null;
+  const pair = /^[0-9a-f]{2}-([0-9a-f]{2})$/.exec(stem);
+  const candidates = pair ? [Number.parseInt(pair[1]!, 16)] : [
+    ...(/^\d{1,3}$/.test(stem) ? [Number.parseInt(stem, 10)] : []),
+    ...(/^[0-9a-f]{1,2}$/.test(stem) ? [Number.parseInt(stem, 16)] : []),
+  ];
+  return candidates.find((uid) => summary.deploymentUids.includes(uid)) ?? null;
 }
 
 /** A key that is the same for every log of one deployment and different across deployments. */

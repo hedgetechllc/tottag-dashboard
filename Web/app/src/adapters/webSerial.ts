@@ -432,7 +432,7 @@ export const webSerialTransport: TagTransport = {
   // Fixed for the life of the page, by the reasoning above
   onReachabilityChange: () => () => {},
 
-  async requestDevice(): Promise<TagConnection | null> {
+  async requestDevice(onPicked?: () => void): Promise<TagConnection | null> {
     const api = serial();
     if (!api) throw new Error(webSerialTransport.unavailableReason() ?? 'USB unavailable');
     let port: SerialPort;
@@ -442,6 +442,7 @@ export const webSerialTransport: TagTransport = {
       if (error instanceof DOMException && error.name === 'NotFoundError') return null;   // dismissed
       throw error;
     }
+    onPicked?.();
     const connection = await openPort(port);
     if (!connection) {
       throw new Error(

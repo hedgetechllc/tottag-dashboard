@@ -12,7 +12,7 @@
 // reading. The tag's identity contributes only the one thing the log cannot say on its own — which
 // of the devices listed in the details block is the one that wrote it.
 
-import { EUI_LEN, EUI_NAME_MAX_LEN, MAX_NUM_RANGING_DEVICES, fileLabel, parseExperimentDetails } from '@tottag/schema';
+import { EUI_LEN, EUI_NAME_MAX_LEN, MAX_NUM_RANGING_DEVICES, logStem, parseExperimentDetails } from '@tottag/schema';
 
 /** Shortest details block `parseExperimentDetails` can read without running off the end. */
 const DETAILS_MIN_BYTES = 18 + MAX_NUM_RANGING_DEVICES * (EUI_LEN + EUI_NAME_MAX_LEN) + 1;
@@ -28,10 +28,11 @@ export interface LogNameInputs {
   readonly fallback: string;
 }
 
-// Drops / \ : * ? " < > |, control characters, and leading or trailing spaces and dots, as the desktop tool does.
-const sanitise = (label: string): string => fileLabel(label);
-
-/** This device's label, as the deployment recorded it. Null when the log cannot say. */
+/**
+ * What this device's files are named after: its label as the deployment recorded it, with only what a file
+ * name cannot hold dropped, or for one left blank the last two parts of its address, `02-31`, as `tottag.py`
+ * names it. Null when the log cannot say.
+ */
 export function labelForDevice(details: Uint8Array | null, deviceUid: number | undefined): string | null {
   if (!details || details.byteLength < DETAILS_MIN_BYTES || deviceUid === undefined) return null;
   let parsed;
@@ -42,8 +43,7 @@ export function labelForDevice(details: Uint8Array | null, deviceUid: number | u
   }
   const index = parsed.uids.findIndex((uid) => uid[0] === deviceUid);
   if (index < 0) return null;
-  // `tottag.py` falls back to the bare UID for an unlabelled device, and so does this.
-  return sanitise(parsed.labels[index] || String(deviceUid)) || String(deviceUid);
+  return logStem(parsed.labels[index] ?? '', parsed.uids[index]!);
 }
 
 export function canonicalLogName(inputs: LogNameInputs): string {

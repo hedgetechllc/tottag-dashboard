@@ -4,7 +4,7 @@
 // deployment beside it when it has one. Labels come from the deployment's own details block, so they
 // belong to that study and are never carried over from another.
 
-import { tagName, type ExperimentDetails } from '@tottag/schema';
+import { shownLabel, tagName, type ExperimentDetails } from '@tottag/schema';
 import type { DeviceReport } from './deployment.ts';
 import { summariseLog } from './logSummary.ts';
 
@@ -29,7 +29,7 @@ export function tagRef(uid: number, scheduled: ExperimentDetails | null): TagRef
     return { uid, name, label: null, display: name };
   }
   const name = tagName(scheduled!.uids[index]!);
-  const label = scheduled!.labels[index]?.trim() || null;
+  const label = shownLabel(scheduled!.labels[index], scheduled!.uids[index]!);
   return { uid, name, label, display: display(name, label) };
 }
 

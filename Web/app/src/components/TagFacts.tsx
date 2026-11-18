@@ -1,6 +1,6 @@
 // What a tag reported when it was last checked, in words.
 
-import { formatDate, formatDateTime, formatTimeOfDay, localDailyWindow, MIN_RECORDING_BATTERY_MV, tagName } from '@tottag/schema';
+import { shownLabel, formatDate, formatDateTime, formatTimeOfDay, localDailyWindow, MIN_RECORDING_BATTERY_MV, tagName } from '@tottag/schema';
 import { batteryLow, CLOCK_TOLERANCE_S, storedState, type StoredDeployment, type TagCheck } from '../features/tagStatus.ts';
 
 const volts = (mv: number) => `${(mv / 1000).toFixed(2)} V`;
@@ -89,7 +89,10 @@ export function TagDetails({ check, now, timezone, downloadedAt }: {
               <li>{daily ? `Records ${formatTimeOfDay(daily.start)} – ${formatTimeOfDay(daily.end)} each day` : 'Records around the clock'}</li>
               <li>
                 With {stored.devices.length} tag{stored.devices.length === 1 ? '' : 's'}:{' '}
-                {stored.devices.map((device) => `${tagName(device.eui)}${device.label ? ` (${device.label})` : ''}`).join(', ')}
+                {stored.devices.map((device) => {
+                  const label = shownLabel(device.label, device.eui);
+                  return `${tagName(device.eui)}${label ? ` (${label})` : ''}`;
+                }).join(', ')}
               </li>
               {storedState(stored, now) !== 'upcoming' && (
                 <li>{downloadedAt

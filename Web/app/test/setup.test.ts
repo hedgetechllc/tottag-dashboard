@@ -44,6 +44,12 @@ test('the times typed are on the study clock, and the tags are told the matching
   assert.deepEqual(draftProblems(family, BEFORE), []);
 });
 
+test('a tag left without a label is told the last two parts of its address, and the form still says it has none', () => {
+  const unlabeled: DeploymentDraft = { ...family, devices: [{ eui: eui(0x0a), label: '10051_CG1' }, { eui: eui(0x0c), label: '  ' }] };
+  assert.deepEqual(draftToConfig(unlabeled).devices.map((device) => device.label), ['10051_CG1', '00:0C']);
+  assert.deepEqual(draftProblems(unlabeled, BEFORE).map((problem) => problem.code), ['label-missing']);
+});
+
 test('changing the time zone moves the deployment, rather than relabelling it', () => {
   const denver = draftToConfig({ ...family, timezone: 'America/Denver' });
   assert.equal(denver.startTime - draftToConfig(family).startTime, 3600);

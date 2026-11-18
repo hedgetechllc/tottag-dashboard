@@ -79,9 +79,48 @@ export function tagName(eui: Uint8Array | readonly number[]): string {
   return `TotTag ${shortAddress(eui)}`;
 }
 
-/** A label as it goes into a log's file name: only what a file name cannot hold is dropped, as the desktop tool's file_label() does. */
+/**
+ * A label as it goes into a log's file name, as the desktop tool's file_label() does: a colon becomes a dash, so
+ * `02:31` is saved as `02-31`, and the rest of what a file name cannot hold is dropped.
+ */
 export function fileLabel(label: string): string {
-  return label.replace(/[\\/:*?"<>|\u0000-\u001F\u007F]/g, '').replace(/^[ .]+|[ .]+$/g, '').slice(0, EUI_NAME_MAX_LEN);
+  return trimFileLabel(label.replace(/:/g, '-').replace(/[\\/*?"<>|\u0000-\u001F\u007F]/g, ''));
+}
+
+/**
+ * A label as file names were made from it before a colon became a dash: the colon was dropped with the rest. Only
+ * for recognizing a file saved then.
+ */
+export function legacyFileLabel(label: string): string {
+  return trimFileLabel(label.replace(/[\\/:*?"<>|\u0000-\u001F\u007F]/g, ''));
+}
+
+const trimFileLabel = (label: string): string => label.replace(/^[ .]+|[ .]+$/g, '').slice(0, EUI_NAME_MAX_LEN);
+
+/**
+ * `02:31`, the last two parts of the address: the label a tag is given when none is typed for it, as the desktop
+ * tool's default_label() does.
+ */
+export function defaultLabel(eui: Uint8Array | readonly number[]): string {
+  return shortAddress(eui);
+}
+
+/**
+ * The label to show beside a tag's name, `Child (TotTag 02:31)`, or null where it would only repeat the name: the
+ * default label `02:31`, or a label stored empty by a deployment set up before blank labels were written.
+ */
+export function shownLabel(label: string | null | undefined, eui: Uint8Array | readonly number[]): string | null {
+  const trimmed = label?.trim() ?? '';
+  return trimmed && trimmed !== defaultLabel(eui) ? trimmed : null;
+}
+
+/**
+ * What a tag's downloaded files are named after, as the desktop tool's log_name() does: its label as fileLabel()
+ * leaves it, which for the `02:31` a blank label is written as is `02-31`. A label stored empty, by a deployment
+ * set up before blank labels were written, or with nothing a file name can hold, is named as the default would be.
+ */
+export function logStem(label: string, eui: Uint8Array | readonly number[]): string {
+  return fileLabel(label) || fileLabel(defaultLabel(eui));
 }
 
 /** The one-byte ID tags know each other by on the air and in the log, as two hex digits. */

@@ -141,14 +141,17 @@ def unpack_experiment_details(data):
 def process_tottag_data(from_uid, storage_directory, details, data, save_raw_file):
    print("len data:", len(data))
    experiment_start_time = details['start_time']
+   # A TotTag whose label was left blank goes by the last two bytes of its ID, '02:31'; its files have a colon as a dash
    uid_to_labels = defaultdict(lambda: 'Unknown')
+   file_names = defaultdict(lambda: 'Unknown')
    for i in range(details['num_devices']):
-      label = details['labels'][i].decode().rstrip('\x00')
-      uid_to_labels[int(details['uids'][i][0])] = label if label else str(details['uids'][i][0])
+      uid, label = details['uids'][i], details['labels'][i].decode().rstrip('\x00')
+      uid_to_labels[int(uid[0])] = label or f'{uid[1]:02X}:{uid[0]:02X}'
+      file_names[int(uid[0])] = uid_to_labels[int(uid[0])].replace(':', '-')
    i = 0
    log_data = defaultdict(dict)
    if save_raw_file:
-      with open(os.path.join(storage_directory, f"{uid_to_labels[from_uid]}_{experiment_start_time}.ttg"), 'wb') as file:
+      with open(os.path.join(storage_directory, f"{file_names[from_uid]}_{experiment_start_time}.ttg"), 'wb') as file:
          file.write(data)
    try:
       most_recent_aligned_timestamp = 0
@@ -239,7 +242,7 @@ def process_tottag_data(from_uid, storage_directory, details, data, save_raw_fil
        traceback.print_exc()
    print(f"len data: {len(data)}, saved: {saved_data_len}")
    log_data = [dict({'t': ts}, **datum) for ts, datum in log_data.items()]
-   with open(os.path.join(storage_directory, uid_to_labels[from_uid] + '.pkl'), 'wb') as file:
+   with open(os.path.join(storage_directory, file_names[from_uid] + '.pkl'), 'wb') as file:
       pickle.dump(log_data, file, protocol=pickle.HIGHEST_PROTOCOL)
 
 

@@ -285,11 +285,14 @@ def unpack_experiment_details(data):
 def process_tottag_data(from_uid, storage_directory, details, data, save_raw_file=True, repaired_pages=0):
    # Every download saves the raw stream as well as the .pkl; only rebuilding a .pkl from that stream leaves it be
    experiment_start_time = details['start_time']
+   # A TotTag whose label was left blank goes by the last two bytes of its ID, '02:31', and its files by '02-31'
    uid_to_labels = defaultdict(lambda: 'Unknown')
+   file_names = {}
    for i in range(details['num_devices']):
-      label = decode_label(details['labels'][i])
-      uid_to_labels[int(details['uids'][i][0])] = label if label else str(details['uids'][i][0])
-   file_name = deployment_record.file_label(uid_to_labels[from_uid]) or str(from_uid)
+      uid, label = details['uids'][i], decode_label(details['labels'][i])
+      uid_to_labels[int(uid[0])] = label or deployment_record.default_label(uid)
+      file_names[int(uid[0])] = deployment_record.log_name(label, uid)
+   file_name = file_names.get(from_uid, 'Unknown')
    if save_raw_file:
       with open(os.path.join(storage_directory, f"{file_name}_{experiment_start_time}.ttg"), 'wb') as file:
          file.write(data)
@@ -451,18 +454,17 @@ def convert_ttg_file(path):
    stem = os.path.splitext(os.path.basename(path))[0]
    named = re.match(r'^(.*)_(\d+)$', stem)
    label = named.group(1) if named else stem
-   names = {}
-   for i in range(details['num_devices']):
-      names[int(details['uids'][i][0])] = decode_label(details['labels'][i]) or str(details['uids'][i][0])
-   from_uid = next((uid for uid, name in names.items() if label in (name, deployment_record.file_label(name) or str(uid))), None)
+   devices = {int(details['uids'][i][0]): (decode_label(details['labels'][i]), details['uids'][i]) for i in range(details['num_devices'])}
+   from_uid = next((short_uid for short_uid, (device_label, uid) in devices.items()
+                    if label in deployment_record.log_names(device_label, uid)), None)
    if from_uid is None and label == 'Unknown':
-      from_uid = next(uid for uid in range(256) if uid not in names)
+      from_uid = next(uid for uid in range(256) if uid not in devices)
    if from_uid is None:
       raise ValueError(f'No TotTag in the deployment that {path} comes from is labeled "{label}", so its .pkl cannot be named '
                        'as a download names it. Give the file back the name the download gave it.')
    folder = os.path.dirname(os.path.abspath(path))
    process_tottag_data(from_uid, folder, details, data, save_raw_file=False)
-   return os.path.join(folder, (deployment_record.file_label(names.get(from_uid, 'Unknown')) or str(from_uid)) + '.pkl')
+   return os.path.join(folder, (deployment_record.log_name(*devices[from_uid]) if from_uid in devices else 'Unknown') + '.pkl')
 
 
 # BLUETOOTH LE COMMUNICATIONS -----------------------------------------------------------------------------------------
@@ -1368,6 +1370,10 @@ class TotTagGUI(tk.Frame):
                tk.messagebox.showerror('TotTag Error', 'ERROR: Deployment duration cannot last longer than %d days'%tottag_format.MAX_DEPLOYMENT_DAYS)
                errors = True
          if not errors:
+            # A TotTag left without a label is given the last two bytes of its ID, '02:31', as the browser tool gives it
+            for i in range(len(self.tottag_rows)):
+               if not labels[i].strip():
+                  labels[i] = deployment_record.default_label(uids[i]).encode('utf-8')
             details = {
                'start_time': pack_datetime(self.tottag_timezone.get(), self.start_date.get(), self.start_time.get(), False),
                'end_time': pack_datetime(self.tottag_timezone.get(), self.end_date.get(), self.end_time.get(), False),

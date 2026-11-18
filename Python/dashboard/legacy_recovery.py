@@ -334,13 +334,23 @@ def decode_absolute_seconds(data, uid_to_labels=None):
    return [dict({'t': t}, **datum) for t, datum in sorted(log_data.items())]
 
 
+def default_label(uid):
+   """'02:31', the last two bytes of a TotTag's ID: the label a TotTag is given when none is typed, as deployment_record's."""
+   return f'{uid[1]:02X}:{uid[0]:02X}'
+
+
 def uid_labels(details):
-   """Short UID -> label, exactly as tottag.process_tottag_data builds it."""
+   """Short UID -> label, exactly as tottag.process_tottag_data builds it: '02:31' for one left blank."""
    labels = defaultdict(lambda: 'Unknown')
    for i in range(details['num_devices']):
-      label = details['labels'][i].decode(errors='replace').rstrip('\x00')
-      labels[int(details['uids'][i][0])] = label if label else str(details['uids'][i][0])
+      uid, label = details['uids'][i], details['labels'][i].decode(errors='replace').rstrip('\x00')
+      labels[int(uid[0])] = label or default_label(uid)
    return labels
+
+
+def uid_file_names(details):
+   """Short UID -> what its files are named after: its label, or '02:31' for one left blank, with a colon as a dash."""
+   return {uid: label.replace(':', '-') for uid, label in uid_labels(details).items()}
 
 
 def format_time(timestamp):
@@ -494,6 +504,7 @@ class Recovery:
 
       self.start_time = start_time if start_time is not None else (self.details['start_time'] if self.details else None)
       self.labels = uid_labels(self.details) if self.details else None
+      self.file_names = uid_file_names(self.details) if self.details else None
 
       # Where the log begins: straight after its META page, or, without one, after the longest stretch of the
       # data region that holds no data page, which is the space the writer had not reached yet
@@ -612,7 +623,9 @@ class Recovery:
 
    @property
    def base_name(self):
-      return f'{self.device_label}_{self.start_time if self.start_time is not None else "unknown"}'
+      uid = self.info['uid']
+      name = self.file_names.get(uid[0], 'Unknown') if self.file_names is not None else self.device_label
+      return f'{name}_{self.start_time if self.start_time is not None else "unknown"}'
 
    def payload_stream(self):
       return b''.join(bytes(segment.payload) for segment in self.segments)

@@ -76,7 +76,14 @@ class EveryDownloadSavesBoth(unittest.TestCase):
          self.assertEqual(file.read(), data, 'the .ttg is not the stream as the TotTag sent it')
       with open(os.path.join(self.folder, 'Parent.pkl'), 'rb') as file:
          records = pickle.load(file)
-      self.assertEqual(records[0]['r'], {'Child': 1200, '7': 3000})
+      self.assertEqual(records[0]['r'], {'Child': 1200, '00:07': 3000}, 'an unlabeled TotTag goes by the last two bytes of its ID')
+
+   def test_a_tottag_given_the_label_a_blank_one_is_written_as_goes_by_it_the_same_way(self):
+      # Both tools now write '00:07' for a TotTag left without a label, so new deployments and old ones read alike
+      info = details((b'Parent', b'Child', b'00:07'))
+      self.assertEqual(self.finish_download(info, stream(blob_of(info))), ('DOWNLOADED', True))
+      with open(os.path.join(self.folder, 'Parent.pkl'), 'rb') as file:
+         self.assertEqual(pickle.load(file)[0]['r'], {'Child': 1200, '00:07': 3000})
 
    def test_the_download_screen_no_longer_asks_whether_to_keep_the_raw_stream(self):
       self.assertFalse(hasattr(tottag.TotTagBLE(queue.Queue(), queue.Queue(), None), 'download_raw_logs'))
@@ -114,17 +121,34 @@ class RebuildingThePkl(unittest.TestCase):
 
    def test_an_unlabeled_tottag_is_named_by_its_id_as_the_download_names_it(self):
       self.download(details(), from_uid=NURSE[0])
-      self.assertSamePkl(os.path.join(self.downloaded, '7.pkl'), self.convert(f'7_{START}.ttg'))
+      self.assertEqual(sorted(os.listdir(self.downloaded)), ['00-07.pkl', f'00-07_{START}.ttg'], 'named by the last two bytes of its ID')
+      self.assertSamePkl(os.path.join(self.downloaded, '00-07.pkl'), self.convert(f'00-07_{START}.ttg'))
 
-   def test_a_label_loses_only_what_a_file_name_cannot_hold(self):
+   def test_a_tottag_given_the_label_a_blank_one_is_written_as_is_named_the_same_way(self):
+      self.download(details((b'Parent', b'Child', b'00:07')), from_uid=NURSE[0])
+      self.assertEqual(sorted(os.listdir(self.downloaded)), ['00-07.pkl', f'00-07_{START}.ttg'], 'not 0007, the label less its colon')
+      self.assertSamePkl(os.path.join(self.downloaded, '00-07.pkl'), self.convert(f'00-07_{START}.ttg'))
+
+   def test_a_log_saved_under_the_bare_decimal_id_by_an_earlier_version_still_converts(self):
+      self.download(details(), from_uid=NURSE[0])
+      rebuilt = self.convert(f'00-07_{START}.ttg', as_name=f'7_{START}.ttg')
+      self.assertEqual(rebuilt, os.path.join(self.copied, '00-07.pkl'), 'the .pkl is named as a download names it now')
+      self.assertSamePkl(os.path.join(self.downloaded, '00-07.pkl'), rebuilt)
+
+   def test_a_label_loses_only_what_a_file_name_cannot_hold_and_a_colon_becomes_a_dash(self):
       self.download(details(('Mamá/Papá: 1'.encode('utf-8'), b'Child')))
-      self.assertEqual(sorted(os.listdir(self.downloaded)), ['MamáPapá 1.pkl', f'MamáPapá 1_{START}.ttg'])
-      self.assertSamePkl(os.path.join(self.downloaded, 'MamáPapá 1.pkl'), self.convert(f'MamáPapá 1_{START}.ttg'))
+      self.assertEqual(sorted(os.listdir(self.downloaded)), ['MamáPapá- 1.pkl', f'MamáPapá- 1_{START}.ttg'])
+      self.assertSamePkl(os.path.join(self.downloaded, 'MamáPapá- 1.pkl'), self.convert(f'MamáPapá- 1_{START}.ttg'))
+
+   def test_a_log_saved_before_a_colon_became_a_dash_still_converts(self):
+      self.download(details(('Mamá/Papá: 1'.encode('utf-8'), b'Child')))
+      rebuilt = self.convert(f'MamáPapá- 1_{START}.ttg', as_name=f'MamáPapá 1_{START}.ttg')
+      self.assertSamePkl(os.path.join(self.downloaded, 'MamáPapá- 1.pkl'), rebuilt)
 
    def test_a_label_of_only_unsafe_characters_falls_back_to_the_id(self):
       self.download(details((b'../', b'Child')))
-      self.assertEqual(sorted(os.listdir(self.downloaded)), ['2.pkl', f'2_{START}.ttg'])
-      self.assertSamePkl(os.path.join(self.downloaded, '2.pkl'), self.convert(f'2_{START}.ttg'))
+      self.assertEqual(sorted(os.listdir(self.downloaded)), ['00-02.pkl', f'00-02_{START}.ttg'])
+      self.assertSamePkl(os.path.join(self.downloaded, '00-02.pkl'), self.convert(f'00-02_{START}.ttg'))
 
    def test_a_renamed_log_is_refused_rather_than_guessed_at(self):
       self.download(details())

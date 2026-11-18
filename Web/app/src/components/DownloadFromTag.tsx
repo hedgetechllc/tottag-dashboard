@@ -59,6 +59,7 @@ export function DownloadFromTag({ onDownloaded, busy }: Props) {
       let connection: TagConnection | null = null;
       try {
         connection = await open();
+        setStatus(null);   // "Connecting…" is over either way
         if (!connection) {
           // A dismissed chooser needs nothing said; a known tag that did not answer says what to do about it
           setError(unreachable);
@@ -149,14 +150,17 @@ export function DownloadFromTag({ onDownloaded, busy }: Props) {
     // round trip through getDevices() was what produced "could not reach that tag" for a tag the
     // user had only just picked, on any Chrome where that API is still behind a flag.
     await run(async () => {
-      const connection = await transport.requestDevice();
+      const connection = await transport.requestDevice(() => setStatus('Connecting to the tag…'));
       if (connection) remember(connection.identity);
       return connection;
     }, null, '');
   }, [remember, run]);
 
   const fromKnown = useCallback(
-    async (tag: KnownTag) => run(() => transportFor(tag).connect(tag.handle), unreachableMessage(tag.eui, tag), ''),
+    async (tag: KnownTag) => run(() => {
+      setStatus('Connecting to the tag…');
+      return transportFor(tag).connect(tag.handle);
+    }, unreachableMessage(tag.eui, tag), ''),
     [run],
   );
 

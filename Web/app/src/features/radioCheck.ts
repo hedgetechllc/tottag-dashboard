@@ -6,7 +6,7 @@
 // fleet the others are compared against.
 
 import {
-  analyseRadio, identifyRadioLog, parseExperimentDetails, radioDeploymentKey, tagName,
+  analyseRadio, shownLabel, identifyRadioLog, parseExperimentDetails, radioDeploymentKey, tagName,
   type RadioCheckResult, type RadioSummary,
 } from '@tottag/schema';
 import type { DeviceReport } from './deployment.ts';
@@ -62,7 +62,8 @@ export function groupRadioDeployments(reports: readonly DeviceReport[]): RadioDe
     const devices = first.deploymentUids.map((uid, i) => {
       const eui = addresses.get(uid);
       const name = eui ? tagName(eui) : `ID ${shortId(uid)}`;
-      return { uid, label: first.deploymentLabels[i]?.trim() || name, name };
+      const label = eui ? shownLabel(first.deploymentLabels[i], eui) : first.deploymentLabels[i]?.trim() || null;
+      return { uid, label: label ?? name, name };
     });
     const nameOf = (uid: number) => devices.find((device) => device.uid === uid)?.name ?? `ID ${shortId(uid)}`;
     const logs = new Map<number, { name: string; summary: RadioSummary }>();
