@@ -25,8 +25,11 @@ export interface TargetFirmware {
   readonly writesFramedRecords: boolean;
   /** De-bounces charger edges and reports the suppressed count. */
   readonly debouncesChargerEdges: boolean;
-  /** Advertises `TotTag-XX`, so a host chooser can tell tags apart. */
-  readonly advertisesShortUidInName: boolean;
+  /**
+   * Advertises a name that tells tags apart in a host chooser: `TotTag 02:0A`, matching `tagName()`,
+   * or `TotTag-0A` on firmware before socitrack 45c7ef8.
+   */
+  readonly advertisesDistinctName: boolean;
   /** Human-readable name for the UI and for a manifest. */
   readonly label: string;
 }
@@ -42,7 +45,7 @@ export const CURRENT_TARGET: TargetFirmware = {
   supportsRetransmission: true,
   writesFramedRecords: true,
   debouncesChargerEdges: true,
-  advertisesShortUidInName: true,
+  advertisesDistinctName: true,
   label: 'current firmware',
 };
 
@@ -56,7 +59,7 @@ export const LEGACY_TARGET: TargetFirmware = {
   supportsRetransmission: false,
   writesFramedRecords: false,
   debouncesChargerEdges: false,
-  advertisesShortUidInName: false,
+  advertisesDistinctName: false,
   label: 'firmware older than the diagnostics record',
 };
 

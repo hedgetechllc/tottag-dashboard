@@ -31,6 +31,9 @@ from load_imu_data import IMU_DATA_LEN
 
 # CONSTANTS AND DEFINITIONS -------------------------------------------------------------------------------------------
 
+# Tags advertise "TotTag" followed by part of their address, so the name is matched by prefix
+TOTTAG_ADVERTISED_NAME_PREFIX = 'TotTag'
+
 DEVICE_ID_UUID = '00002a23-0000-1000-8000-00805f9b34fb'
 LOCATION_SERVICE_UUID = 'd68c3156-a23f-ee90-0c45-5231395e5d2e'
 FIND_MY_TOTTAG_SERVICE_UUID = 'd68c3155-a23f-ee90-0c45-5231395e5d2e'
@@ -323,7 +326,7 @@ class TotTagBLE(threading.Thread):
       await asyncio.sleep(5)
       await scanner.stop()
       for device_address, device_info in scanner.discovered_devices_and_advertisement_data.items():
-         if device_info[1].local_name == 'TotTag':
+         if (device_info[1].local_name or '').startswith(TOTTAG_ADVERTISED_NAME_PREFIX):
             self.discovered_devices[device_address] = device_info[0]
             self.result_queue.put_nowait(('DEVICE', device_address))
       self.result_queue.put_nowait(('SCANNING', False))

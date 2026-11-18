@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildManifest, diffReadback, encodeExperimentDetails, formatDate, manifestToText, MAX_NUM_RANGING_DEVICES,
-  tagName, unixToWallClock, type ClockChangePolicy, type DeviceWriteResult, type Problem, type WriteOutcome,
+  shortUidHex, tagName, unixToWallClock, type ClockChangePolicy, type DeviceWriteResult, type Problem, type WriteOutcome,
 } from '@tottag/schema';
 import { webBluetoothTransport } from '../adapters/webBluetooth.ts';
 import { webSerialTransport } from '../adapters/webSerial.ts';
@@ -157,7 +157,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
         remember(connection.identity);
         await recordCheckFrom(connection).catch(() => null);
         if (!sameEui(connection.identity.eui, device.eui)) {
-          setNotice({ tone: 'error', text: `That was ${tagName(connection.identity.eui)}, not ${tagName(device.eui)}. Try again and pick TotTag-${tagName(device.eui).slice(-2)} in the list.` });
+          setNotice({ tone: 'error', text: `That was ${tagName(connection.identity.eui)}, not ${tagName(device.eui)}. Try again and pick ${tagName(device.eui)} in the list, or TotTag-${shortUidHex(device.eui)} if its firmware is older.` });
         }
       } finally {
         await connection.disconnect();
@@ -356,7 +356,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
           </div>
           <ol className="steps">
             <li><strong>Put every tag on its charger.</strong> A tag can only be reached while it is charging.</li>
-            <li>Click <strong>Add a tag</strong> and pick <code>TotTag-XX</code> from the list, where XX is the end of the ID on the tag's sticker.</li>
+            <li>Click <strong>Add a tag</strong> and pick <code>TotTag XX:XX</code> from the list, where XX:XX is the end of the ID on the tag's sticker. A tag with older firmware shows only the last pair, as <code>TotTag-XX</code>.</li>
             <li>Use <strong>Buzz</strong> to make sure you picked the tag you meant, then give each one a label.</li>
           </ol>
           <div className="actions">

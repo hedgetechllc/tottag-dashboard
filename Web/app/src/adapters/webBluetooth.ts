@@ -530,10 +530,14 @@ export const webBluetoothTransport: TagTransport = {
     if (!api) throw new Error(webBluetoothTransport.unavailableReason() ?? 'Bluetooth unavailable');
     try {
       const device = await api.requestDevice({
-        // PREFIX, not an exact name. Firmware now advertises "TotTag-XX" where XX is the short UID,
-        // so that a chooser — which shows the advertised name and nothing else — can tell tags
-        // apart. An exact `name` filter would match none of them. Older firmware advertises plain
-        // "TotTag", which the same prefix still matches, so both work.
+        // PREFIX, not an exact name. Firmware advertises "TotTag 02:0A", the same name the dashboard
+        // gives the tag (tagName), so that a chooser can tell tags apart. An exact `name` filter
+        // would match none of them. Earlier firmware advertised "TotTag-0A" or plain "TotTag", which
+        // the same prefix still matches.
+        //
+        // On macOS the chooser shows the name CoreBluetooth has cached for the device, which can be
+        // the plain "TotTag" an earlier firmware reported, not the name it advertises now. Chrome then
+        // adds an internal device ID to tell the identical names apart.
         filters: [{ namePrefix: 'TotTag' }],
         optionalServices: [LIVE_STATS, MAINTENANCE, DEVICE_INFO_SERVICE],
       });

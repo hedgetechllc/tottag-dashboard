@@ -43,7 +43,9 @@ async def quick_download_trigger(tag_hex_address=None, command=1):
 
     for device_address, device_info in scanner.discovered_devices_and_advertisement_data.items():
         #device_info[0]:BLEDevice   device_infi[1]:AdvertisementData       
-        if (device_address == tag_hex_address) or ((tag_hex_address is not None) and (device_address[-2:] == tag_hex_address[-2:]) and (device_info[1].local_name == 'TotTag')) or ((tag_hex_address is None) and device_info[1].local_name == 'TotTag'):
+        # Tags advertise "TotTag" followed by part of their address, so match the name by prefix
+        is_tottag = (device_info[1].local_name or '').startswith(TOTTAG_ADVERTISED_NAME_PREFIX)
+        if (device_address == tag_hex_address) or (is_tottag and ((tag_hex_address is None) or (device_address[-2:] == tag_hex_address[-2:]))):
             print(f"Device {device_address} is found!")
             discovered_devices[device_address] = device_info[0]
             async with BleakClient(device_info[0], use_cached=False) as client:

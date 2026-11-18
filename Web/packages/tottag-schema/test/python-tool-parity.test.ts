@@ -55,7 +55,7 @@ import {
   NUM_XMIT_ANTENNAS,
   SYSTEM_ID_EUI_OFFSETS,
 } from '../src/constants.ts';
-import { encodeExperimentDetails } from '../src/deployment.ts';
+import { encodeExperimentDetails, tagName } from '../src/deployment.ts';
 import { parseExperimentDetails } from '../src/log.ts';
 import { FIRMWARE_DIR } from '../tools/spec.mjs';
 
@@ -65,6 +65,8 @@ const TOTTAG_PY = readFileSync(join(DASHBOARD, 'tottag.py'), 'utf8');
 const PARSE_PY = readFileSync(join(DASHBOARD, 'parse.py'), 'utf8');
 const FORMAT_PY = readFileSync(join(DASHBOARD, 'tottag_format.py'), 'utf8');
 const PROCESSING_PY = readFileSync(join(DASHBOARD, 'processing.py'), 'utf8');
+const EXPERIMENTAL_PY = readFileSync(join(DASHBOARD, 'experimental_tottag.py'), 'utf8');
+const QUICK_TRIGGER_PY = readFileSync(join(DASHBOARD, 'quick_download_trigger.py'), 'utf8');
 const BLUETOOTH_C = readFileSync(join(FIRMWARE_DIR, 'peripherals', 'src', 'bluetooth.c'), 'utf8');
 
 /** Reads a module-level `NAME = <int>` assignment from a Python source file. */
@@ -415,24 +417,62 @@ test('AGREES: the Python tool now normalises daily times into range', () => {
   }
 });
 
-test('AGREES: both tools match the advertised name by prefix, because the firmware appends a UID', () => {
-  // The firmware advertises a fixed prefix plus the device's own short UID -- 'TotTag-3E' -- so that a
-  // host chooser can tell one tag from another. A host matching the WHOLE name therefore finds nothing
-  // at all, which is what tottag.py did from the commit that introduced the suffix until 2026-09-15.
+/** The firmware's fixed advertised name prefix, from `adv_name_prefix[]` in bluetooth.c. */
+function advertisedNamePrefix(): string {
   const chars = /adv_name_prefix\[\]\s*=\s*\{([^}]*)\}/.exec(BLUETOOTH_C);
   assert.ok(chars, "the firmware's advertised name prefix could not be located");
-  const prefix = [...chars[1]!.matchAll(/'(.)'/g)].map((m) => m[1]).join('');
+  return [...chars[1]!.matchAll(/'(.)'/g)].map((m) => m[1]).join('');
+}
+
+test('AGREES: both tools match the advertised name by prefix, because the firmware appends part of the address', () => {
+  // The firmware advertises a fixed prefix plus part of the device's address -- 'TotTag 02:0A', and
+  // 'TotTag-0A' before socitrack 45c7ef8 -- so that a host chooser can tell one tag from another. A
+  // host matching the WHOLE name therefore finds nothing at all, which is what tottag.py did from the
+  // commit that introduced the suffix until 2026-09-15.
+  const prefix = advertisedNamePrefix();
   assert.equal(prefix, 'TotTag');
 
   // The suffix is what makes equality wrong, so assert it is really there rather than trusting the name.
-  assert.match(BLUETOOTH_C, /adv_local_name\[sizeof\(adv_name_prefix\)\] = '-';/,
-    'the firmware no longer appends a UID; equality matching would be safe again');
+  assert.match(BLUETOOTH_C, /adv_local_name\[sizeof\(adv_name_prefix\)\] = '.';/,
+    'the firmware no longer appends to the name; equality matching would be safe again');
 
+  for (const [file, source] of [
+    ['tottag.py', TOTTAG_PY], ['experimental_tottag.py', EXPERIMENTAL_PY], ['quick_download_trigger.py', QUICK_TRIGGER_PY],
+  ] as const) {
+    assert.match(source, /local_name(?: or '')?\)?\.startswith\(TOTTAG_ADVERTISED_NAME_PREFIX\)/,
+      `${file} is not matching the advertised name by prefix`);
+    assert.doesNotMatch(source, /local_name == /,
+      `${file} is matching the advertised name by equality, which finds no device`);
+  }
+  // quick_download_trigger.py takes the constant from tottag.py with `from tottag import *`
   assert.equal(pythonString(TOTTAG_PY, 'TOTTAG_ADVERTISED_NAME_PREFIX'), prefix);
-  assert.match(TOTTAG_PY, /local_name\.startswith\(TOTTAG_ADVERTISED_NAME_PREFIX\)/,
-    'tottag.py is not matching the advertised name by prefix');
-  assert.doesNotMatch(TOTTAG_PY, /local_name == /,
-    'tottag.py is matching the advertised name by equality, which finds no device');
+  assert.equal(pythonString(EXPERIMENTAL_PY, 'TOTTAG_ADVERTISED_NAME_PREFIX'), prefix);
+});
+
+test('AGREES: the firmware advertises the name the dashboard gives a tag', () => {
+  // The chooser shows only the advertised name, and the dashboard tells people which one to pick by
+  // tagName(). Rebuild the advertised name from the statements in bluetooth_init() that write it, for
+  // a sample address, and compare. eui[i] is the firmware's uid[i]: see SYSTEM_ID_EUI_OFFSETS.
+  const eui = Uint8Array.of(0x0a, 0x02, 0x42, 0xe5, 0x98, 0xc0);
+  const prefix = advertisedNamePrefix();
+  const hex = (nibble: number) => nibble.toString(16).toUpperCase();
+  let name = prefix;
+  for (const [, offset, value] of BLUETOOTH_C.matchAll(/adv_local_name\[sizeof\(adv_name_prefix\)(?: \+ (\d+))?\] = ([^;]+);/g)) {
+    assert.equal(Number(offset ?? 0), name.length - prefix.length, 'the advertised name is not written in order');
+    const literal = /^'(.)'$/.exec(value!);
+    const high = /^hex_digits\[\(uid\[(\d)\] >> 4\) & 0x0F\]$/.exec(value!);
+    const low = /^hex_digits\[uid\[(\d)\] & 0x0F\]$/.exec(value!);
+    if (literal) name += literal[1];
+    else if (high) name += hex(eui[Number(high[1])]! >> 4);
+    else if (low) name += hex(eui[Number(low[1])]! & 0x0f);
+    else assert.fail(`the advertised name is built from something this test cannot follow: ${value}`);
+  }
+  assert.equal(name, tagName(eui));
+
+  // The advertised length is sizeof(adv_local_name), so the buffer must be exactly the name's length
+  const size = /static char adv_local_name\[sizeof\(adv_name_prefix\) \+ (\d+)\];/.exec(BLUETOOTH_C);
+  assert.ok(size, 'the size of adv_local_name could not be located');
+  assert.equal(prefix.length + Number(size[1]), name.length, 'adv_local_name is not sized to the name written into it');
 });
 
 test('AGREES: both tools save the REPAIRED stream, not the transfer that lost pages', () => {

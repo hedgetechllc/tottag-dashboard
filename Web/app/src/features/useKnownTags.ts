@@ -4,7 +4,10 @@ import { createSharedStore, useSharedStore } from '../lib/sharedStore.ts';
 import type { TagIdentity, TagTransport } from '../ports/tagTransport.ts';
 
 export interface KnownTag {
-  /** Browser-assigned, stable within this profile. What `connect()` takes. */
+  /**
+   * Browser-assigned, stable within this profile until the operating system forgets the device, as
+   * clearing macOS's Bluetooth device cache makes it do. What `connect()` takes.
+   */
   readonly handle: string;
   /** Which transport `handle` is for. Absent on entries saved before USB existed, which were all Bluetooth. */
   readonly transport?: TagTransport['id'];
@@ -19,13 +22,43 @@ export interface KnownTag {
  * tag remembered with last month's label would offer it to next month's family, which is exactly the
  * kind of slip that ends up in the data.
  */
-const store = createSharedStore<KnownTag[]>(
-  'tottag.known-tags',
-  (raw) => (Array.isArray(raw) ? raw : [])
+const store = createSharedStore<KnownTag[]>('tottag.known-tags', readKnownTags, () => []);
+
+/** The saved list, from whatever an earlier version of this page stored. */
+export function readKnownTags(raw: unknown): KnownTag[] {
+  return (Array.isArray(raw) ? raw : [])
     .filter((entry): entry is KnownTag => !!entry && typeof entry.handle === 'string' && Array.isArray(entry.eui))
-    .map(({ handle, transport, eui, firstSeen, lastSeen }) => ({ handle, transport: transport ?? 'bluetooth', eui, firstSeen, lastSeen })),
-  () => [],
-);
+    .map(({ handle, transport, eui, firstSeen, lastSeen }) => ({ handle, transport: transport ?? 'bluetooth', eui, firstSeen, lastSeen }))
+    // Lists saved before tags were kept one to an address can hold a stale handle beside the live one:
+    // keep whichever was seen most recently
+    .reduce<KnownTag[]>((tags, tag) => {
+      const kept = tags.find((other) => sameTag(other, tag));
+      return rememberTag(tags, kept && kept.lastSeen > tag.lastSeen ? { ...kept, firstSeen: tag.firstSeen } : tag);
+    }, []);
+}
+
+const sameTag = (a: KnownTag, b: KnownTag): boolean =>
+  a.handle === b.handle
+  || (knownTagTransport(a) === knownTagTransport(b) && formatEui(Uint8Array.from(a.eui)) === formatEui(Uint8Array.from(b.eui)));
+
+/**
+ * The list with `seen` in it, in place of every entry for the same tag over the same transport.
+ *
+ * Keyed by the tag's address, not by the handle, because the handle for the same tag can change. The
+ * browser derives it from the operating system's identity for the device, which macOS replaces when its
+ * Bluetooth device cache is cleared. The old handle then reaches nothing, and if it were kept beside
+ * the new one `routeFor` could find it first: the tag would ask to be picked again, and picking it would
+ * only ever refresh the entry nobody was reading.
+ */
+export function rememberTag(tags: readonly KnownTag[], seen: KnownTag): KnownTag[] {
+  const replaced = tags.filter((tag) => sameTag(tag, seen));
+  const firstSeen = replaced.reduce((first, tag) => (tag.firstSeen < first ? tag.firstSeen : first), seen.firstSeen);
+  const entry: KnownTag = { ...seen, transport: knownTagTransport(seen), firstSeen };
+  // In the place of the first entry it replaces, so the list keeps its order
+  const at = tags.findIndex((tag) => replaced.includes(tag));
+  const rest = tags.filter((tag) => !replaced.includes(tag));
+  return at < 0 ? [...rest, entry] : [...rest.slice(0, at), entry, ...rest.slice(at)];
+}
 
 /**
  * Tags this browser has been granted access to, remembered across sessions.
@@ -44,13 +77,9 @@ export function useKnownTags() {
 
   const remember = useCallback((identity: TagIdentity) => {
     const now = new Date().toISOString();
-    setTags((current) => {
-      const existing = current.find((tag) => tag.handle === identity.handle);
-      if (!existing) {
-        return [...current, { handle: identity.handle, transport: identity.transport, eui: Array.from(identity.eui), firstSeen: now, lastSeen: now }];
-      }
-      return current.map((tag) => (tag.handle === identity.handle ? { ...tag, eui: Array.from(identity.eui), lastSeen: now } : tag));
-    });
+    setTags((current) => rememberTag(current, {
+      handle: identity.handle, transport: identity.transport, eui: Array.from(identity.eui), firstSeen: now, lastSeen: now,
+    }));
   }, [setTags]);
 
   const forget = useCallback((handle: string) => {
