@@ -20,6 +20,24 @@ export const HELPER_EXTENSION_ID =
 /** The protocol this page speaks: `ProtocolVersion` in the helper's internal/ble. An older helper is outdated. 2 added USB. */
 export const HELPER_PROTOCOL = 2;
 
+/** The newest TotTag Helper released when this page was built (vite.config.ts), or ''. */
+export const LATEST_HELPER_RELEASE: string = (import.meta.env?.VITE_HELPER_RELEASE as string | undefined) ?? '';
+
+/**
+ * Whether a helper of this version is older than the newest released. A build of one's own,
+ * 0.0.0-dev, never is; one from `git describe`, 0.2.1-3-gab12cd3, counts as its release.
+ */
+export function helperUpdateAvailable(version: string | null | undefined, latest: string = LATEST_HELPER_RELEASE): boolean {
+  const parse = (text: string) => /^(\d+)\.(\d+)\.(\d+)/.exec(text)?.slice(1).map(Number);
+  const have = version ? parse(version) : undefined;
+  const want = parse(latest);
+  if (!have || !want || have.every((part) => part === 0)) return false;
+  for (let i = 0; i < 3; i += 1) {
+    if (have[i] !== want[i]) return have[i]! < want[i]!;
+  }
+  return false;
+}
+
 /** An absent or stuck helper must not hold the page's check open. Answering this needs no Bluetooth. */
 const IDENTIFY_TIMEOUT_MS = 3000;
 /** Long enough for the library's own ten-second waits to give up first. */
@@ -454,7 +472,7 @@ export function describeHelper(state: HelperState): string | null {
     case 'starting-bluetooth': return 'The TotTag Helper is starting Bluetooth. If the system asks, allow it.';
     case 'no-bluetooth': return `The TotTag Helper cannot use Bluetooth: ${state.detail ?? 'it is off, or not allowed'}. Turn Bluetooth on, or allow the TotTag Helper in the system's privacy settings, then try again.`;
     case 'not-installed': return 'The TotTag Helper extension is installed, but its program is not.';
-    case 'outdated': return `The TotTag Helper${state.version ? ` ${state.version}` : ''} is older than this page needs. Install the latest one.`;
+    case 'outdated': return `The TotTag Helper${state.version ? ` ${state.version}` : ''} is older than this page needs.`;
     // The detail is often a sentence of its own, already ending in a full stop
     case 'failed': return `The TotTag Helper is not working: ${(state.detail ?? 'it stopped').replace(/\.$/, '')}.`;
     default: return null;

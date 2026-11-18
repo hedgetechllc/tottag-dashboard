@@ -54,7 +54,9 @@ reports it as outdated rather than calling it.
   whether it may, and it then appears under System Settings → Privacy & Security → Bluetooth. Its
   reason is in an Info.plist linked into the executable
   ([`packaging/macos/Info.plist`](packaging/macos/Info.plist)); macOS ends a program that uses
-  Bluetooth without one.
+  Bluetooth without one. The installer puts the helper in an app, `TotTag Helper.app`, with the
+  same Info.plist, signed as `net.tottag.helper` with a Developer ID: so the prompt and System
+  Settings name it "TotTag Helper", with its icon, and the permission carries over to each update.
 - **Nothing but a request that needs Bluetooth touches it.** `install`, `doctor` and `version` run
   from a terminal without asking for permission. The Bluetooth library is a patched copy for this:
   [`third_party/bluetooth/TOTTAG-PATCH.md`](third_party/bluetooth/TOTTAG-PATCH.md).
@@ -92,3 +94,104 @@ Bluetooth permission again, since an unsigned build is a different program to ma
 
 [`test/spike.html`](test/spike.html) talks to the helper on its own, without the dashboard: serve
 `test/` on localhost and open it in a browser with the extension loaded.
+
+## Installing
+
+People install it from the [latest release](https://github.com/hedgetechllc/tottag-dashboard/releases/latest),
+built by [`packaging`](packaging) and the [release workflow](../../.github/workflows/tottag-helper-release.yml):
+
+| Asset | |
+| --- | --- |
+| `TotTag-Helper-macOS.pkg` | `TotTag Helper.app`, universal, for macOS 13 or later. Signed with Developer ID, notarized, stapled. Installs to `/Library/Application Support/TotTag` and registers the helper for every user and for the person installing it. |
+| `TotTag-Helper-Windows.exe` | x64 and ARM64, Windows 10 or later. Per-user, so no administrator rights to install. Signed through SignPath. |
+| `tottag-helper_{amd64,arm64}.deb` | Registers system-wide for Chrome, Chromium and Edge, and installs a udev rule that lets the person at the computer open a TotTag's USB port without being in the `dialout` group. |
+| `tottag-helper_linux_{amd64,arm64}.tar.gz` | With `install.sh`, for other distributions: `sudo ./install.sh`, or `./install.sh --user` for just you (and then USB needs the `dialout` group). |
+
+Each registers the helper through its own `install` command, except the `.deb`, whose manifests
+are files dpkg owns; all of them allow the extension ID in
+[`internal/install`](internal/install/install.go). `tottag-helper doctor` checks an installation.
+
+## Releasing
+
+Commit and push to `main`, then from `Web/`:
+
+```sh
+npm run release:helper -- 0.1.0     # the first release: give the version
+npm run release:helper              # after that, the next patch version, 0.1.0 → 0.1.1
+npm run release:helper -- minor     # 0.1.0 → 0.2.0; or major, or an exact version like 0.4.2
+```
+
+It checks that `main` is committed and the same as GitHub's, and that the [TotTag Helper
+workflow](../../.github/workflows/tottag-helper.yml) has passed on GitHub for the helper's code as
+it is now — so push, and wait for that run to pass. It then shows what has changed in the helper
+since the last release, and asks before tagging the commit `tottag-helper-v<version>` and pushing
+the tag. The [release workflow](../../.github/workflows/tottag-helper-release.yml) then builds the
+installers above, without running the tests again (`-- --without-ci-check` skips the check, for
+when GitHub cannot be asked), installs each on its runner and runs `doctor`, and publishes them as
+a GitHub release marked latest. Asset names carry no version, so the dashboard can link to
+`releases/latest/download/<name>`; that relies on the helper's releases being this repository's
+only ones.
+
+A manual run of the release workflow (Actions → TotTag Helper release → Run workflow) from any
+branch makes the same builds, unsigned, as artifacts of the run, without publishing anything: the
+way to try a change to the packaging. Once SignPath signing is set up, each release waits for its
+two signing requests to be approved in SignPath. A tag's build fails rather than publish a macOS
+installer that is signed but not notarized, which Gatekeeper would refuse.
+
+To build the macOS installer on a Mac, signed if the Developer ID identities are in the keychain
+and ad hoc otherwise:
+
+```sh
+packaging/macos/build-pkg.sh 0.1.0                                  # → dist/TotTag-Helper-macOS.pkg
+NOTARY_KEYCHAIN_PROFILE=tottag-notary packaging/macos/build-pkg.sh 0.1.0   # and notarized
+```
+
+### Version numbers
+
+The version exists only in the tag: the workflow builds it into the executable, the installers'
+metadata, the app's Info.plist and the release's name, so there is no file to edit. A local build
+(`npm run helper:build`) names itself from `git describe`, such as `0.1.0-3-gab12cd3-dirty` for
+three commits after 0.1.0 with uncommitted changes, and `tottag-helper version` or `doctor` says
+which build is installed.
+
+Patch for fixes, minor for new requests, major for anything that breaks an installed dashboard.
+Separately, `ProtocolVersion` and `HELPER_PROTOCOL` change together whenever a request, reply or
+event changes shape (see above), so release the helper before deploying a dashboard that needs it.
+
+Installed helpers do not update themselves: people install the new release over the old one.
+Publishing a release rebuilds the dashboard ([Pages workflow](../../.github/workflows/pages.yml)),
+with the repository's tags, so that the dashboard can know the newest version and say "update
+available" to anyone whose helper is older.
+
+### Signing credentials
+
+The macOS installer is signed with the same Apple Developer team as A3EM's card helper
+(`D3TVN67UY9`), and the Windows one through the same SignPath organization, in a project of its
+own. Run [`packaging/setup-signing.sh`](packaging/setup-signing.sh) on the Mac that holds the Apple
+Developer account. It checks for the two Developer ID identities, stores notarization credentials
+in the login keychain as the `tottag-notary` profile (or uses A3EM's `a3em-notary`), and, if
+asked, copies what CI needs into encrypted secrets on a GitHub environment called
+`tottag-helper-release` that only `tottag-helper-v*` tags can deploy to. Nothing it asks for is
+echoed or written to a file.
+
+| Where | Name | What |
+| --- | --- | --- |
+| Environment secret | `MACOS_CERTS_P12`, `MACOS_CERTS_PASSWORD` | The Developer ID Application and Installer identities, exported together |
+| Environment secret | `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | For `notarytool`: an App Store Connect team API key with the Developer role (recommended) |
+| Environment secret | `APPLE_ID`, `APPLE_APP_PASSWORD` | Or instead: an Apple ID and an app-specific password |
+| Environment secret | `SIGNPATH_API_TOKEN` | A SignPath CI user's token, a Submitter on the signing policy |
+| Repository variable | `APPLE_TEAM_ID` | `D3TVN67UY9` |
+| Repository variable | `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_POLICY_SLUG` | From SignPath; the script suggests `tottag-helper` and `release-signing` |
+
+In SignPath, the project for this repository (`tottag-helper`) needs GitHub as its trusted build
+system, linked to `hedgetechllc/tottag-dashboard`; a signing policy (`release-signing`) with the
+CI user as a Submitter and an approver; and two artifact configurations, named `executables` and
+`installer`, pasted from [`packaging/windows/signpath`](packaging/windows/signpath). Each release
+makes two signing requests, which an approver accepts in SignPath; the workflow waits up to an
+hour for each. Anything not configured is skipped with a warning, so an unsigned build still
+completes.
+
+## Code signing policy
+
+The project's code signing policy, which SignPath Foundation asks to be published with the
+project, is in [`CODE_SIGNING_POLICY.md`](CODE_SIGNING_POLICY.md).

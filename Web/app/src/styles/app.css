@@ -434,6 +434,14 @@
 }
 .picker[open] { display: flex; flex-direction: column; gap: 14px; }
 .picker::backdrop { background: color-mix(in srgb, var(--ink) 35%, transparent); }
+/* The steps to install or update the TotTag Helper */
+.install { width: min(560px, calc(100vw - 32px)); }
+.install__steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 14px; }
+.install__step { display: flex; flex-direction: column; gap: 6px; }
+.install__detail { color: var(--ink-2); font-size: var(--text-sm); }
+.install__command { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.install__command code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--sunken); font-size: var(--text-xs); }
+.install__links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 /* The padding keeps the rows' borders off the edge the list scrolls within. The dialog re-centers as
    rows arrive and can land half a pixel off, and a border flush with that edge is then cut off. */
 .picker__list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow: auto; padding: 2px; margin: -2px; }

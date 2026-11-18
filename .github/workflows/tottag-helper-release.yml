@@ -71,6 +71,8 @@ jobs:
             -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign
           rm -f "$RUNNER_TEMP/certs.p12"
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          # The new keychain first, then the runner's own, one word each.
+          # shellcheck disable=SC2046
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
       - name: Build, sign and notarize
         env:
@@ -138,7 +140,13 @@ jobs:
         shell: pwsh
     env:
       SIGN: ${{ secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
+    # Until SignPath is set up the installer is built and published unsigned, and the release says so
+    outputs:
+      signed: ${{ steps.signing.outputs.signed }}
     steps:
+      - id: signing
+        run: '"signed=$env:SIGN" >> $env:GITHUB_OUTPUT'
+        working-directory: .
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
@@ -215,7 +223,7 @@ jobs:
           path: assets
           merge-multiple: true
           pattern: '{macos,linux,windows}'
-      - run: cd assets && sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - run: cd assets && sha256sum -- * > SHA256SUMS && cat SHA256SUMS
       - uses: softprops/action-gh-release@v3
         with:
           name: TotTag Helper ${{ needs.version.outputs.version }}
@@ -225,7 +233,7 @@ jobs:
             The native helper the TotTag dashboard uses to find TotTags over Bluetooth and reach those plugged in over USB, without the browser's device chooser. Install it, add the TotTag Helper browser extension, and reload the dashboard.
 
             - **macOS 13 or later**: `TotTag-Helper-macOS.pkg`. The first time the dashboard scans, macOS asks whether the TotTag Helper may use Bluetooth.
-            - **Windows 10 or later**: `TotTag-Helper-Windows.exe` (installs for you only; no administrator rights needed)
+            - **Windows 10 or later**: `TotTag-Helper-Windows.exe` (installs for you only; no administrator rights needed)${{ needs.windows.outputs.signed != 'true' && '. This installer is not signed yet, so Windows may say it protected your PC: choose **More info**, then **Run anyway**.' || '' }}
             - **Debian, Ubuntu**: `tottag-helper_amd64.deb` (or `_arm64`), then `sudo apt install ./tottag-helper_amd64.deb`
             - **Other Linux**: the `.tar.gz` for your architecture; run `sudo ./install.sh`, or `./install.sh --user`
 

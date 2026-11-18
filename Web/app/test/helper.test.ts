@@ -489,3 +489,29 @@ test('picking several tags reaches each in turn, nearby and plugged in, and one 
     helper.stop();
   }
 });
+
+// --- Offering it ------------------------------------------------------------------------------------
+
+test('an installed helper is out of date only when a newer release exists, and a development build never is', async () => {
+  const { helperUpdateAvailable } = await import('../src/lib/helper.ts');
+  assert.equal(helperUpdateAvailable('0.1.0', '0.2.0'), true);
+  assert.equal(helperUpdateAvailable('0.2.0', '0.2.0'), false);
+  assert.equal(helperUpdateAvailable('0.10.0', '0.9.3'), false, 'versions compared as numbers, not text');
+  assert.equal(helperUpdateAvailable('0.0.0-dev', '0.2.0'), false);
+  assert.equal(helperUpdateAvailable('0.2.1-3-gab12cd3', '0.2.1'), false);
+  assert.equal(helperUpdateAvailable(null, '0.2.0'), false);
+  assert.equal(helperUpdateAvailable('0.1.0', ''), false, 'with no release known, nothing is offered');
+});
+
+test('the install steps link to the newest helper release by its tag, for this computer', async () => {
+  const { installGuide, HELPER_RELEASES_URL, EXTENSION_STORE_URL } = await import('../src/lib/helperInstall.ts');
+  const mac = installGuide('macos', { latest: '0.3.0' });
+  assert.equal(mac.steps[0]!.links![0]!.href, `${HELPER_RELEASES_URL}/download/tottag-helper-v0.3.0/TotTag-Helper-macOS.pkg`);
+  assert.ok(mac.steps.some((step) => step.links?.some((link) => link.href === EXTENSION_STORE_URL)), 'no extension step');
+  assert.ok(EXTENSION_STORE_URL.endsWith('/mdcklmmdjhaedkbclflpiehpcmofhcfn'));
+  const update = installGuide('windows', { latest: '0.3.0', program: true });
+  assert.ok(!update.steps.some((step) => step.links?.some((link) => link.href === EXTENSION_STORE_URL)), 'an update asked for the extension again');
+  assert.match(update.steps[0]!.links![0]!.href, /tottag-helper-v0\.3\.0\/TotTag-Helper-Windows\.exe$/);
+  assert.equal(installGuide('linux', { latest: '' }).steps[0]!.links![0]!.href, HELPER_RELEASES_URL, 'with no release known, the releases page');
+  assert.equal(installGuide('other').available, false);
+});

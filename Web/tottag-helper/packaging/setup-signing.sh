@@ -30,18 +30,36 @@ ask() { printf '%s [y/N] ' "$1"; read -r reply; [ "$reply" = y ] || [ "$reply" =
 # IFS= keeps leading and trailing spaces, which are legal in a password.
 secret() { printf '%s: ' "$1" >&2; stty -echo; IFS= read -r value; stty echo; printf '\n' >&2; printf '%s' "$value"; }
 has_identity() { security find-identity -v -p basic | grep -q "\"$1: .*($TEAM)\""; }
+# An identity is a certificate AND its private key. Keychain Access shows a certificate on its own
+# just the same, so say which half is missing rather than only that the identity is.
+untrusted_identity() { security find-identity -p basic | grep -q "\"$1: .*($TEAM)\""; }
+has_certificate() { security find-certificate -a -c "$1: " 2>/dev/null | grep -q "\"labl\"<blob>=\"$1: .*($TEAM)\""; }
+check_identity() {
+  label=$(printf '%-27s' "$1:")
+  if has_identity "$1"; then echo "   $label present"
+  elif untrusted_identity "$1"; then cat <<TEXT
+   $label installed, but this Mac does not trust it. Install Apple's "Developer ID - G2"
+     intermediate certificate from https://www.apple.com/certificateauthority/ and run this again.
+TEXT
+  elif has_certificate "$1"; then cat <<TEXT
+   $label the certificate is installed, but not its private key, so nothing can be signed with it.
+     It was made on another Mac (or downloaded from developer.apple.com, which never includes the key).
+     On the Mac that has the key, open Keychain Access > login > My Certificates, select
+     "$1: …", File > Export Items…, save a .p12 with a password, and open that .p12 here.
+     Or make a new one on this Mac: Xcode > Settings > Accounts > the team > Manage Certificates… > +.
+TEXT
+  else cat <<TEXT
+   $label MISSING. To create it (only the team's Account Holder can):
+     Xcode > Settings > Accounts > the team > Manage Certificates… > + > $1
+TEXT
+  fi
+}
 has_profile() { xcrun notarytool history --keychain-profile "$1" >/dev/null 2>&1; }
 
 bold "1. Signing identities (team $TEAM)"
-if has_identity "Developer ID Application"; then echo "   Developer ID Application: present"; else
-  echo "   Developer ID Application: MISSING"; fi
-if has_identity "Developer ID Installer"; then echo "   Developer ID Installer:   present"; else
-  cat <<'TEXT'
-   Developer ID Installer:   MISSING. It signs the .pkg. To create it:
-     Xcode > Settings > Accounts > select the team > Manage Certificates… > + > Developer ID Installer
-   (Only the team's Account Holder can create Developer ID certificates.) Then run this again.
-TEXT
-fi
+# Application signs TotTag Helper.app; Installer signs the .pkg
+check_identity "Developer ID Application"
+check_identity "Developer ID Installer"
 
 bold "2. Notarization on this Mac"
 # An App Store Connect team API key with the Developer role is the simpler credential: no

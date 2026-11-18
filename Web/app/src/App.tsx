@@ -3,6 +3,7 @@ import { webBluetoothTransport } from './adapters/webBluetooth.ts';
 import { webSerialTransport } from './adapters/webSerial.ts';
 import { ConfirmButton } from './components/ConfirmButton.tsx';
 import { BrandMark, BrandWordmark, CalendarIcon, DownloadIcon, LockIcon, SearchIcon, SignalIcon } from './components/Icons.tsx';
+import { HelperOffer } from './components/HelperInstall.tsx';
 import { TagPickerHost } from './components/TagPicker.tsx';
 import { useDeploymentDraft } from './features/useDeploymentDraft.ts';
 import { describeHelper, helper } from './lib/helper.ts';
@@ -95,6 +96,7 @@ export function App() {
               {helperCanRetry && <> <button type="button" className="link" onClick={() => void helper.retry()}>Try again</button></>}
             </p>
           )}
+          <HelperOffer state={helperState} />
         </div>
       </nav>
 
