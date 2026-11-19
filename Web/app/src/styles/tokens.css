@@ -45,6 +45,9 @@
   --note: #4f5d74;
   --note-wash: #eff2f7;
   --note-line: #d3dbe7;
+  --unknown: #6a4a9c;
+  --unknown-wash: #f3eefa;
+  --unknown-line: #d9cbef;
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
@@ -108,6 +111,9 @@
     --note: #b6c1d4;
     --note-wash: #23272f;
     --note-line: #3a414d;
+    --unknown: #c4a8f0;
+    --unknown-wash: #29223a;
+    --unknown-line: #4b3d66;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 20px -12px rgba(0, 0, 0, 0.5);
     --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.35), 0 14px 32px -16px rgba(0, 0, 0, 0.6);

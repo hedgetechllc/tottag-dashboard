@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ImportPanel } from '../components/ImportPanel.tsx';
-import { LinkMatrix, ReceptionMatrix, RadioCard, VERDICT_ORDER } from '../components/RadioResults.tsx';
+import { LinkMatrix, ReceptionMatrix, RadioCard, RadioNotes, VERDICT_ORDER } from '../components/RadioResults.tsx';
 import type { DeviceReport } from '../features/deployment.ts';
 import { groupRadioDeployments, runRadioCheck } from '../features/radioCheck.ts';
 import type { LoadResult } from '../ports/logSource.ts';
@@ -71,7 +71,7 @@ function LogRadioCheck({ reports, busy, onLoaded, onOpenFolder }: Omit<Props, 'l
   }
 
   const devices = [...result.devices].sort((a, b) => VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict] || a.label.localeCompare(b.label));
-  const counts = { pass: 0, check: 0, fail: 0, missing: 0 };
+  const counts = { pass: 0, check: 0, fail: 0, missing: 0, unknown: 0 };
   for (const device of result.devices) counts[device.verdict] += 1;
   const minutes = result.windowStartMs !== null && result.windowEndMs !== null
     ? Math.round((result.windowEndMs - result.windowStartMs) / 60_000) : 0;
@@ -100,16 +100,17 @@ function LogRadioCheck({ reports, busy, onLoaded, onOpenFolder }: Omit<Props, 'l
           {' · '}
           {counts.fail > 0 && <span className="summary-line__crit">{counts.fail} failed · </span>}
           {counts.check > 0 && <span className="summary-line__warn">{counts.check} to check · </span>}
+          {counts.unknown > 0 && <span className="summary-line__unknown">{counts.unknown} unknown · </span>}
           {counts.missing > 0 && <span className="summary-line__warn">{counts.missing} without a log · </span>}
           {counts.pass} passed
         </p>
       </div>
 
-      {result.notes.map((note) => <p key={note} className="banner banner--warn">{note}</p>)}
+      <RadioNotes notes={result.notes} />
       {deployment.unmatched.map((note) => <p key={note} className="banner banner--warn">{note}</p>)}
 
       <div className="cards">
-        {devices.map((device) => <RadioCard key={device.uid} device={device} referenced={result.references?.length !== 0}
+        {devices.map((device) => <RadioCard key={device.uid} device={device} referenced={!!result.references?.length}
           name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
       </div>
       <LinkMatrix devices={deployment.devices} links={result.links} />

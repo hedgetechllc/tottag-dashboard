@@ -49,6 +49,9 @@ export const ANTENNA_MIN_SAMPLES = 200;
 export const REFERENCE_LINK_SUCCESS = 0.95;
 /** Measured distance under which two tags are too close to judge: 2 feet, less ranging error. */
 export const TOO_CLOSE_MM = 500;
+/** Shown first, and every verdict is unknown, when no two devices are shown healthy to judge the others by. */
+export const NO_REFERENCE_NOTE = `No two tags decoded at least ${Math.round(REFERENCE_LINK_SUCCESS * 100)}% of each other's ranging both ways, so none can be ` +
+  'shown healthy to judge the others by, and every verdict is Unknown. The figures shown are each tag\'s own counts. Include at least two tags known to be good.';
 /** A device's typical link coverage, below the others' typical coverage, or outright. */
 export const COVERAGE_CHECK_DROP = 0.15;
 export const COVERAGE_FAIL = 0.5;
@@ -219,13 +222,14 @@ export function summarizeRadio(result: ParseResult): RadioSummary {
 
 // --- Cross-device analysis ----------------------------------------------------------------------------
 
-export type RadioVerdict = 'pass' | 'check' | 'fail' | 'missing';
+/** Unknown where no two devices are shown healthy, so there is nothing to judge a device against. */
+export type RadioVerdict = 'pass' | 'check' | 'fail' | 'missing' | 'unknown';
 
 export interface RadioCheckDevice {
   readonly uid: number;
   readonly label: string;
   readonly verdict: RadioVerdict;
-  /** Plain-language reasons for anything but a pass, worst first. */
+  /** Plain-language reasons for anything but a pass, worst first; for an unknown verdict, what its own counts show. */
   readonly reasons: readonly string[];
   /** Fraction of the test's rounds in which this device produced a range. */
   readonly participation: number | null;
@@ -233,11 +237,11 @@ export interface RadioCheckDevice {
   readonly rxFailureRate: number | null;
   /** The same, per antenna; null for an antenna with too few receives to judge. */
   readonly antennaFailureRates: ReadonlyArray<number | null>;
-  /** Median, over this device's links, of the fraction of rounds it ranged to that peer. */
+  /** Median, over this device's links to the healthy devices (or to all, where none is shown healthy), of the fraction of rounds it ranged to that peer. */
   readonly linkCoverage: number | null;
   /** Systematic distance error, mm, solved from known positions. Null without them. */
   readonly biasMm: number | null;
-  /** Typical distance spread on this device's links, mm. */
+  /** Typical distance spread on the same links as its coverage, mm. */
   readonly noiseMm: number | null;
   readonly diagnostics: RadioDiagnosticsTotals | null;
   readonly aborts: number;
@@ -579,6 +583,22 @@ export function analyseRadio(input: RadioCheckInput): RadioCheckResult {
       'Place every tag at least 2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail.');
   }
 
+  // Receives by sender, where every device loaded reports them: then each device's own receiving and transmitting can
+  // be told from its partners', and those replace the raw receive failures, which a bad partner inflates
+  const receptions: Reception[] | null = loaded.length >= 2 && loaded.every((device) => device.summary!.diagnostics?.bySender)
+    ? loaded.flatMap((device) => device.summary!.diagnostics!.bySender!.map((counts) => ({
+        receiver: device.uid, sender: counts.uid, rxOk: counts.rxOkByAntenna, rxFailed: counts.rxFailedByAntenna,
+      })))
+    : null;
+  const separation = receptions?.length ? separateReceptions(loaded.map((device) => device.uid), receptions) : null;
+  const qualities = separation?.qualities ?? null;
+  const referenced = !!separation?.references.length;
+  const unknown = !!separation && !referenced;
+  if (unknown) notes.unshift(NO_REFERENCE_NOTE);
+  // Links judged only to the healthy devices where some are shown healthy, since a bad partner drags a link down too
+  const references = new Set(separation?.references ?? []);
+  const judgedWith = (other: number) => !referenced || references.has(other);
+
   // Each device's own figures
   const figures = new Map(input.devices.map((device) => {
     const summary = device.summary;
@@ -592,7 +612,7 @@ export function analyseRadio(input: RadioCheckInput): RadioCheckResult {
           return total >= ANTENNA_MIN_SAMPLES ? diagnostics.rxFailedByAntenna[antenna]! / total : null;
         })
       : [];
-    const mine = links.filter((link) => link.a === device.uid || link.b === device.uid);
+    const mine = links.filter((link) => (link.a === device.uid && judgedWith(link.b)) || (link.b === device.uid && judgedWith(link.a)));
     const myCoverage = mine.map((link) => (link.a === device.uid ? link.coverageAtoB : link.coverageBtoA));
     const myNoise = mine.map((link) => link.noiseMm).filter((noise): noise is number => noise !== null);
     return [device.uid, {
@@ -605,20 +625,6 @@ export function analyseRadio(input: RadioCheckInput): RadioCheckResult {
     }] as const;
   }));
 
-  // Receives by sender, where every device loaded reports them: then each device's own receiving and transmitting can
-  // be told from its partners', and those replace the raw receive failures, which a bad partner inflates
-  const receptions: Reception[] | null = loaded.length >= 2 && loaded.every((device) => device.summary!.diagnostics?.bySender)
-    ? loaded.flatMap((device) => device.summary!.diagnostics!.bySender!.map((counts) => ({
-        receiver: device.uid, sender: counts.uid, rxOk: counts.rxOkByAntenna, rxFailed: counts.rxFailedByAntenna,
-      })))
-    : null;
-  const separation = receptions?.length ? separateReceptions(loaded.map((device) => device.uid), receptions) : null;
-  const qualities = separation?.qualities ?? null;
-  const referenced = !!separation?.references.length;
-  if (separation && !referenced) {
-    notes.push(`No two tags decoded at least ${percent(REFERENCE_LINK_SUCCESS)} of each other's ranging both ways, so none can be shown healthy to judge the others by. ` +
-      'Each tag is judged on its own counts instead. Test with at least two tags known to be good.');
-  }
   // Against the best device where some are shown healthy, and against perfection where none is
   const bestOf = (pick: (quality: TagQuality) => number | null) => !referenced ? 1 :
     Math.max(0, ...[...(qualities?.values() ?? [])].map(pick).filter((value): value is number => value !== null));
@@ -679,8 +685,9 @@ export function analyseRadio(input: RadioCheckInput): RadioCheckResult {
 
     const coverageOthers = othersMedian(device.uid, (g) => g.linkCoverage);
     if (f.linkCoverage !== null && rounds) {
-      if (f.linkCoverage < COVERAGE_FAIL) fails.push(`Ranged to a typical peer in only ${percent(f.linkCoverage)} of rounds.`);
-      else if (coverageOthers !== null && f.linkCoverage < coverageOthers - COVERAGE_CHECK_DROP) checks.push(`Ranged to a typical peer in ${percent(f.linkCoverage)} of rounds, against ${percent(coverageOthers)} for the other tags.`);
+      const peer = referenced ? 'healthy tag' : 'peer';
+      if (f.linkCoverage < COVERAGE_FAIL) fails.push(`Ranged to a typical ${peer} in only ${percent(f.linkCoverage)} of rounds.`);
+      else if (coverageOthers !== null && f.linkCoverage < coverageOthers - COVERAGE_CHECK_DROP) checks.push(`Ranged to a typical ${peer} in ${percent(f.linkCoverage)} of rounds, against ${percent(coverageOthers)} for the other tags.`);
     }
 
     const biasMm = biases?.get(device.uid) ?? null;
@@ -693,7 +700,7 @@ export function analyseRadio(input: RadioCheckInput): RadioCheckResult {
 
     const noiseOthers = othersMedian(device.uid, (g) => g.noiseMm);
     if (f.noiseMm !== null && noiseOthers !== null && f.noiseMm > NOISE_CHECK_MIN_MM && f.noiseMm > NOISE_CHECK_FACTOR * noiseOthers) {
-      checks.push(`Its distances spread by about ${Math.round(f.noiseMm)} mm, against ${Math.round(noiseOthers)} mm for the other tags.`);
+      checks.push(`Its distances${referenced ? ' to the healthy tags' : ''} spread by about ${Math.round(f.noiseMm)} mm, against ${Math.round(noiseOthers)} mm for the other tags.`);
     }
 
     if (diagnostics) {
@@ -704,7 +711,7 @@ export function analyseRadio(input: RadioCheckInput): RadioCheckResult {
 
     return {
       uid: device.uid, label: device.label,
-      verdict: fails.length ? 'fail' : checks.length ? 'check' : 'pass',
+      verdict: unknown ? 'unknown' : fails.length ? 'fail' : checks.length ? 'check' : 'pass',
       reasons: [...fails, ...checks],
       participation: f.participation, rxFailureRate: f.rxFailureRate, antennaFailureRates: f.antennaFailureRates,
       linkCoverage: f.linkCoverage, biasMm, noiseMm: f.noiseMm, diagnostics, aborts: device.summary!.aborts,

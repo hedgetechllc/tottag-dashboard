@@ -40,6 +40,9 @@ ANTENNA_FAIL_SPREAD = 0.25
 ANTENNA_MIN_SAMPLES = 200
 REFERENCE_LINK_SUCCESS = 0.95
 TOO_CLOSE_MM = 500
+NO_REFERENCE_NOTE = (f"No two tags decoded at least {round(REFERENCE_LINK_SUCCESS * 100)}% of each other's ranging both ways, so none can be "
+                     "shown healthy to judge the others by, and every verdict is Unknown. The figures shown are each tag's own counts. "
+                     'Include at least two tags known to be good.')
 COVERAGE_CHECK_DROP = 0.15
 COVERAGE_FAIL = 0.5
 BIAS_CHECK_MM = 120
@@ -355,6 +358,22 @@ def analyse_radio(devices, positions=None):
                     else f"{len(too_close)} pairs of tags measured closer than 2 feet, the closest {label(closest['a'])} and {label(closest['b'])} at about {cm} cm.") +
                    ' Place every tag at least 2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail.')
 
+   # Receives by sender, where every device loaded reports them: then each device's own receiving and transmitting can
+   # be told from its partners', and those replace the raw receive failures, which a bad partner inflates
+   receptions = None
+   if len(loaded) >= 2 and all((d['summary']['diagnostics'] or {}).get('by_sender') is not None for d in loaded):
+      receptions = [{'receiver': d['uid'], 'sender': counts['uid'], 'rx_ok': counts['rx_ok_by_antenna'], 'rx_failed': counts['rx_failed_by_antenna']}
+                    for d in loaded for counts in d['summary']['diagnostics']['by_sender']]
+   separation = separate_receptions([d['uid'] for d in loaded], receptions) if receptions else None
+   qualities = separation['qualities'] if separation else None
+   referenced = bool(separation and separation['references'])
+   unknown = bool(separation) and not referenced
+   if unknown:
+      notes.insert(0, NO_REFERENCE_NOTE)
+   # Links judged only to the healthy devices where some are shown healthy, since a bad partner drags a link down too
+   references = set(separation['references']) if separation else set()
+   judged_with = lambda other: not referenced or other in references
+
    # Each device's own figures
    figures = {}
    for device in devices:
@@ -368,7 +387,7 @@ def analyse_radio(devices, positions=None):
          for antenna, ok in enumerate(diagnostics['rx_ok_by_antenna']):
             total = ok + diagnostics['rx_failed_by_antenna'][antenna]
             antenna_rates.append(diagnostics['rx_failed_by_antenna'][antenna] / total if total >= ANTENNA_MIN_SAMPLES else None)
-      mine = [link for link in links if device['uid'] in (link['a'], link['b'])]
+      mine = [link for link in links if (link['a'] == device['uid'] and judged_with(link['b'])) or (link['b'] == device['uid'] and judged_with(link['a']))]
       my_coverage = [link['coverage_a_to_b'] if link['a'] == device['uid'] else link['coverage_b_to_a'] for link in mine]
       my_noise = [link['noise_mm'] for link in mine if link['noise_mm'] is not None]
       figures[device['uid']] = {
@@ -384,18 +403,6 @@ def analyse_radio(devices, positions=None):
       values = [f[key] for other, f in figures.items() if other != uid and f['loaded'] and f[key] is not None]
       return _median(values) if values else None
 
-   # Receives by sender, where every device loaded reports them: then each device's own receiving and transmitting can
-   # be told from its partners', and those replace the raw receive failures, which a bad partner inflates
-   receptions = None
-   if len(loaded) >= 2 and all((d['summary']['diagnostics'] or {}).get('by_sender') is not None for d in loaded):
-      receptions = [{'receiver': d['uid'], 'sender': counts['uid'], 'rx_ok': counts['rx_ok_by_antenna'], 'rx_failed': counts['rx_failed_by_antenna']}
-                    for d in loaded for counts in d['summary']['diagnostics']['by_sender']]
-   separation = separate_receptions([d['uid'] for d in loaded], receptions) if receptions else None
-   qualities = separation['qualities'] if separation else None
-   referenced = bool(separation and separation['references'])
-   if separation and not referenced:
-      notes.append(f"No two tags decoded at least {_percent(REFERENCE_LINK_SUCCESS)} of each other's ranging both ways, so none can be shown healthy to judge the others by. "
-                   'Each tag is judged on its own counts instead. Test with at least two tags known to be good.')
    # Against the best device where some are shown healthy, and against perfection where none is
    best_of = lambda key: 1 if not referenced else max([0] + [q[key] for q in (qualities or {}).values() if q[key] is not None])
    best_hears, best_heard = best_of('hears'), best_of('heard')
@@ -452,10 +459,11 @@ def analyse_radio(devices, positions=None):
 
       coverage_others = others_median(device['uid'], 'link_coverage')
       if f['link_coverage'] is not None and rounds:
+         peer = 'healthy tag' if referenced else 'peer'
          if f['link_coverage'] < COVERAGE_FAIL:
-            fails.append(f"Ranged to a typical peer in only {_percent(f['link_coverage'])} of rounds.")
+            fails.append(f"Ranged to a typical {peer} in only {_percent(f['link_coverage'])} of rounds.")
          elif coverage_others is not None and f['link_coverage'] < coverage_others - COVERAGE_CHECK_DROP:
-            checks.append(f"Ranged to a typical peer in {_percent(f['link_coverage'])} of rounds, against {_percent(coverage_others)} for the other tags.")
+            checks.append(f"Ranged to a typical {peer} in {_percent(f['link_coverage'])} of rounds, against {_percent(coverage_others)} for the other tags.")
 
       bias_mm = biases.get(device['uid']) if biases else None
       if bias_mm is not None:
@@ -467,7 +475,7 @@ def analyse_radio(devices, positions=None):
 
       noise_others = others_median(device['uid'], 'noise_mm')
       if f['noise_mm'] is not None and noise_others is not None and f['noise_mm'] > NOISE_CHECK_MIN_MM and f['noise_mm'] > NOISE_CHECK_FACTOR * noise_others:
-         checks.append(f"Its distances spread by about {_js_round(f['noise_mm'])} mm, against {_js_round(noise_others)} mm for the other tags.")
+         checks.append(f"Its distances{' to the healthy tags' if referenced else ''} spread by about {_js_round(f['noise_mm'])} mm, against {_js_round(noise_others)} mm for the other tags.")
 
       if diagnostics:
          recoveries = diagnostics['wake_failures'] + diagnostics['irq_stuck']
@@ -479,7 +487,7 @@ def analyse_radio(devices, positions=None):
 
       results.append({
          'uid': device['uid'], 'label': device['label'],
-         'verdict': 'fail' if fails else ('check' if checks else 'pass'),
+         'verdict': 'unknown' if unknown else ('fail' if fails else ('check' if checks else 'pass')),
          'reasons': fails + checks,
          'participation': f['participation'], 'rx_failure_rate': f['rx_failure_rate'], 'antenna_failure_rates': f['antenna_failure_rates'],
          'link_coverage': f['link_coverage'], 'bias_mm': bias_mm, 'noise_mm': f['noise_mm'], 'diagnostics': diagnostics,

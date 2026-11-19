@@ -97,7 +97,7 @@ TOTTAG_USB_PID = 0x2828
 
 RADIO_TEST_MIN_MINUTES, RADIO_TEST_MAX_MINUTES, RADIO_TEST_DEFAULT_MINUTES = 2, 10, 2
 RADIO_LAYOUTS = ('Not given', 'Circle, radius (ft):', 'Line, spacing (ft):')
-RADIO_VERDICTS = {'fail': 'Fail', 'check': 'Check', 'missing': 'No data', 'pass': 'Pass'}
+RADIO_VERDICTS = {'fail': 'Fail', 'check': 'Check', 'missing': 'No data', 'pass': 'Pass', 'unknown': 'Unknown'}
 RADIO_ROLES = {'idle': 'searching'}
 METRES_PER_FOOT = 0.3048
 MM_PER_INCH = 25.4
@@ -1790,6 +1790,7 @@ class TotTagGUI(tk.Frame):
          self.radio_tree.column(key, width=width, minwidth=50, anchor=tk.CENTER)
       self.radio_tree.tag_configure('fail', foreground='#b3261e')
       self.radio_tree.tag_configure('check', foreground='#9a6700')
+      self.radio_tree.tag_configure('unknown', foreground='#6a4a9c')
       self.radio_tree.pack(fill=tk.X)
       legend = tk.Label(body, justify=tk.LEFT, anchor=tk.W, font=('Helvetica', 11),
                         text="Brackets in the 'by antenna' column mark the antenna that a TotTag listens for schedules on.")
@@ -1943,7 +1944,7 @@ class TotTagGUI(tk.Frame):
          lines.append('Verdicts appear once every TotTag has 15 seconds of data.')
       if judged:
          lines += [radio_wording(note) for note in result['notes']]
-         order = {'fail': 0, 'check': 1, 'missing': 2, 'pass': 3}
+         order = {'fail': 0, 'check': 1, 'unknown': 2, 'missing': 3, 'pass': 4}
          messages = {device['uid']: device['message'] for device in devices}
          for device in sorted(result['devices'], key=lambda d: (order[d['verdict']], d['label'])):
             # A device with no data says why, from how its test went, rather than that it has no log

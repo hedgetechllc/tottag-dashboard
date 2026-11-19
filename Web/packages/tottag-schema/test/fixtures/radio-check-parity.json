@@ -4061,7 +4061,7 @@
      {
       "uid": 78,
       "label": "4E",
-      "verdict": "fail",
+      "verdict": "unknown",
       "reasons": ["54% of its receives failed. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The other tags failed to receive 40% of what it sent. A weak transmitter, or a damaged antenna or connection.","Antennas 1 and 3 failed 68% and 67% of its receives, against 27% through antenna 2. Those antennas, their switch, or their connections are suspect.","The other tags failed to receive 36% and 60% of what it sent through antennas 1 and 2, against 23% through antenna 3. Those antennas, their switch, or their connections are suspect."],
       "participation": 0.9770833333333333,
       "rxFailureRate": 0.539429012345679,
@@ -4108,7 +4108,7 @@
      {
       "uid": 99,
       "label": "63",
-      "verdict": "fail",
+      "verdict": "unknown",
       "reasons": ["44% of its receives failed. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The other tags failed to receive 51% of what it sent. A weak transmitter, or a damaged antenna or connection.","Antennas 1 and 2 failed 48% and 64% of its receives, against 19% through antenna 3. Those antennas, their switch, or their connections are suspect.","The other tags failed to receive 60% and 69% of what it sent through antennas 1 and 3, against 23% through antenna 2. Those antennas, their switch, or their connections are suspect."],
       "participation": 0.98125,
       "rxFailureRate": 0.43719135802469133,
@@ -4155,7 +4155,7 @@
      {
       "uid": 156,
       "label": "9C",
-      "verdict": "fail",
+      "verdict": "unknown",
       "reasons": ["46% of its receives failed. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The other tags failed to receive 52% of what it sent. A weak transmitter, or a damaged antenna or connection.","Antennas 2 and 3 failed 42% and 66% of its receives, against 29% through antenna 1. Those antennas, their switch, or their connections are suspect.","The other tags failed to receive 57% and 55% of what it sent through antennas 1 and 3, against 45% through antenna 2."],
       "participation": 0.9833333333333333,
       "rxFailureRate": 0.45686728395061726,
@@ -4202,7 +4202,7 @@
      {
       "uid": 198,
       "label": "C6",
-      "verdict": "fail",
+      "verdict": "unknown",
       "reasons": ["36% of its receives failed. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The other tags failed to receive 36% of what it sent. A weak transmitter, or a damaged antenna or connection.","Antenna 1 failed 42% of its receives, against 31% and 36% through the others."],
       "participation": 0.9791666666666666,
       "rxFailureRate": 0.36157407407407405,
@@ -4309,7 +4309,7 @@
       "residualMm": 0.8679656440357348
      }
     ],
-    "notes": ["6 pairs of tags measured closer than 2 feet, the closest 63 and 9C at about 21 cm. Place every tag at least 2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail.","No two tags decoded at least 95% of each other's ranging both ways, so none can be shown healthy to judge the others by. Each tag is judged on its own counts instead. Test with at least two tags known to be good."],
+    "notes": ["No two tags decoded at least 95% of each other's ranging both ways, so none can be shown healthy to judge the others by, and every verdict is Unknown. The figures shown are each tag's own counts. Include at least two tags known to be good.","6 pairs of tags measured closer than 2 feet, the closest 63 and 9C at about 21 cm. Place every tag at least 2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail."],
     "receptions": [
      {
       "receiver": 78,
@@ -4424,23 +4424,23 @@
        {
         "uid": 99,
         "bins": [
-         [0,114,1500,12],
-         [1,115,1502,13],
-         [2,116,1501,12],
-         [3,116,1501,11],
-         [4,114,1501,14],
-         [5,114,1503,12]
+         [0,77,1496,108],
+         [1,77,1520,116],
+         [2,77,1508,106],
+         [3,78,1510,94],
+         [4,76,1508,121],
+         [5,76,1527,107]
         ]
        },
        {
         "uid": 198,
         "bins": [
-         [0,115,1501,14],
-         [1,116,1504,11],
-         [2,115,1501,14],
-         [3,114,1497,13],
-         [4,115,1501,13],
-         [5,116,1499,12]
+         [0,47,1501,14],
+         [1,48,1504,11],
+         [2,47,1501,14],
+         [3,47,1497,13],
+         [4,48,1501,13],
+         [5,48,1499,12]
         ]
        }
       ],
@@ -4509,23 +4509,23 @@
        {
         "uid": 99,
         "bins": [
-         [0,114,1200,11],
-         [1,114,1196,14],
-         [2,116,1203,12],
-         [3,114,1201,11],
-         [4,115,1201,11],
-         [5,115,1200,12]
+         [0,77,1203,95],
+         [1,77,1169,121],
+         [2,77,1224,109],
+         [3,76,1205,94],
+         [4,77,1207,100],
+         [5,77,1200,103]
         ]
        },
        {
         "uid": 198,
         "bins": [
-         [0,114,1374,12],
-         [1,115,1377,11],
-         [2,116,1375,14],
-         [3,115,1378,10],
-         [4,114,1372,13],
-         [5,116,1377,10]
+         [0,47,1374,12],
+         [1,47,1377,11],
+         [2,48,1375,14],
+         [3,47,1378,10],
+         [4,47,1372,13],
+         [5,48,1377,10]
         ]
        }
       ],
@@ -4583,34 +4583,34 @@
        {
         "uid": 20,
         "bins": [
-         [0,116,1498,12],
-         [1,113,1503,12],
-         [2,114,1497,14],
-         [3,114,1497,13],
-         [4,115,1500,10],
-         [5,115,1502,14]
+         [0,78,1479,107],
+         [1,76,1528,104],
+         [2,77,1473,126],
+         [3,76,1473,119],
+         [4,77,1496,90],
+         [5,77,1515,121]
         ]
        },
        {
         "uid": 62,
         "bins": [
-         [0,115,1202,11],
-         [1,114,1203,12],
-         [2,115,1197,10],
-         [3,114,1199,14],
-         [4,115,1200,14],
-         [5,115,1199,11]
+         [0,77,1220,101],
+         [1,76,1224,105],
+         [2,77,1171,90],
+         [3,77,1187,127],
+         [4,77,1199,125],
+         [5,77,1187,99]
         ]
        },
        {
         "uid": 198,
         "bins": [
-         [0,115,1504,14],
-         [1,114,1504,13],
-         [2,115,1500,13],
-         [3,116,1502,10],
-         [4,115,1498,14],
-         [5,113,1501,14]
+         [0,47,1526,124],
+         [1,47,1528,113],
+         [2,47,1491,116],
+         [3,48,1509,90],
+         [4,48,1474,127],
+         [5,47,1499,127]
         ]
        }
       ],
@@ -4668,34 +4668,34 @@
        {
         "uid": 20,
         "bins": [
-         [0,114,1502,10],
-         [1,115,1498,10],
-         [2,116,1503,14],
-         [3,116,1503,11],
-         [4,114,1504,14],
-         [5,113,1500,13]
+         [0,47,1502,10],
+         [1,47,1498,10],
+         [2,48,1503,14],
+         [3,48,1503,11],
+         [4,47,1504,14],
+         [5,47,1500,13]
         ]
        },
        {
         "uid": 62,
         "bins": [
-         [0,113,1378,12],
-         [1,115,1376,12],
-         [2,113,1373,10],
-         [3,114,1379,12],
-         [4,114,1373,11],
-         [5,116,1376,10]
+         [0,47,1378,12],
+         [1,47,1376,12],
+         [2,47,1373,10],
+         [3,47,1379,12],
+         [4,47,1373,11],
+         [5,48,1376,10]
         ]
        },
        {
         "uid": 99,
         "bins": [
-         [0,113,1497,11],
-         [1,114,1504,12],
-         [2,115,1498,12],
-         [3,114,1498,13],
-         [4,115,1498,11],
-         [5,113,1503,14]
+         [0,47,1469,96],
+         [1,47,1530,109],
+         [2,47,1479,106],
+         [3,47,1480,112],
+         [4,47,1475,97],
+         [5,47,1516,127]
         ]
        }
       ],
@@ -4750,8 +4750,8 @@
       "rxFailureRate": 0.15632716049382717,
       "antennaFailureRates": [0.2037037037037037,0.0724537037037037,0.19282407407407406],
       "linkCoverage": 0.9583333333333334,
-      "biasMm": 1.1414245398995415,
-      "noiseMm": 19.273799999999998,
+      "biasMm": 5.474757873232875,
+      "noiseMm": 20.0151,
       "diagnostics": {
        "rxOk": 10934,
        "rxFailed": 2026,
@@ -4796,9 +4796,9 @@
       "participation": 0.975,
       "rxFailureRate": 0.15933641975308643,
       "antennaFailureRates": [0.20717592592592593,0.07407407407407407,0.19675925925925927],
-      "linkCoverage": 0.95625,
-      "biasMm": 0.2171509202009171,
-      "noiseMm": 17.7912,
+      "linkCoverage": 0.9541666666666667,
+      "biasMm": 1.800484253534251,
+      "noiseMm": 20.0151,
       "diagnostics": {
        "rxOk": 10895,
        "rxFailed": 2065,
@@ -4839,13 +4839,13 @@
       "uid": 99,
       "label": "63",
       "verdict": "fail",
-      "reasons": ["27% of its receives from the healthy tags failed, against 1% for the tag that hears best. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The healthy tags failed to receive 38% of what it sent, against 1% for the tag heard best. A weak transmitter, or a damaged antenna or connection.","Antennas 1 and 2 failed 31% and 49% of its receives from the healthy tags, against 2% through antenna 3. Those antennas, their switch, or their connections are suspect.","The healthy tags failed to receive 51% and 51% of what it sent through antennas 1 and 3, against 11% through antenna 2. Those antennas, their switch, or their connections are suspect."],
+      "reasons": ["27% of its receives from the healthy tags failed, against 1% for the tag that hears best. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The healthy tags failed to receive 38% of what it sent, against 1% for the tag heard best. A weak transmitter, or a damaged antenna or connection.","Antennas 1 and 2 failed 31% and 49% of its receives from the healthy tags, against 2% through antenna 3. Those antennas, their switch, or their connections are suspect.","The healthy tags failed to receive 51% and 51% of what it sent through antennas 1 and 3, against 11% through antenna 2. Those antennas, their switch, or their connections are suspect.","Ranged to a typical healthy tag in 64% of rounds, against 95% for the other tags.","Its distances to the healthy tags spread by about 162 mm, against 20 mm for the other tags."],
       "participation": 0.9791666666666666,
       "rxFailureRate": 0.2908950617283951,
       "antennaFailureRates": [0.32546296296296295,0.5108796296296296,0.03634259259259259],
-      "linkCoverage": 0.9541666666666667,
-      "biasMm": -0.3585754601004585,
-      "noiseMm": 18.5325,
+      "linkCoverage": 0.6385416666666666,
+      "biasMm": -2.0252421267671252,
+      "noiseMm": 161.6034,
       "diagnostics": {
        "rxOk": 9190,
        "rxFailed": 3770,
@@ -4885,14 +4885,14 @@
      {
       "uid": 198,
       "label": "C6",
-      "verdict": "check",
-      "reasons": ["The healthy tags failed to receive 9% of what it sent, against 1% for the tag heard best."],
+      "verdict": "fail",
+      "reasons": ["Ranged to a typical healthy tag in only 39% of rounds.","The healthy tags failed to receive 9% of what it sent, against 1% for the tag heard best."],
       "participation": 0.9833333333333333,
       "rxFailureRate": 0.15648148148148147,
       "antennaFailureRates": [0.2025462962962963,0.059953703703703703,0.20694444444444443],
-      "linkCoverage": 0.9541666666666667,
-      "biasMm": -0.6159510601624636,
-      "noiseMm": 18.5325,
+      "linkCoverage": 0.39375,
+      "biasMm": -6.53261772682913,
+      "noiseMm": 18.161849999999998,
       "diagnostics": {
        "rxOk": 10932,
        "rxFailed": 2028,
@@ -4944,18 +4944,18 @@
      {
       "a": 20,
       "b": 99,
-      "coverageAtoB": 0.9604166666666667,
-      "coverageBtoA": 0.95,
-      "medianMm": 1501,
-      "noiseMm": 18.5325,
+      "coverageAtoB": 0.6416666666666667,
+      "coverageBtoA": 0.6375,
+      "medianMm": 1508,
+      "noiseMm": 164.5686,
       "trueMm": 1500,
-      "residualMm": 1
+      "residualMm": 8
      },
      {
       "a": 20,
       "b": 198,
-      "coverageAtoB": 0.9583333333333334,
-      "coverageBtoA": 0.9604166666666667,
+      "coverageAtoB": 0.3958333333333333,
+      "coverageBtoA": 0.3958333333333333,
       "medianMm": 1502,
       "noiseMm": 19.273799999999998,
       "trueMm": 1500.8331019803634,
@@ -4964,18 +4964,18 @@
      {
       "a": 62,
       "b": 99,
-      "coverageAtoB": 0.95625,
-      "coverageBtoA": 0.9541666666666667,
-      "medianMm": 1200.5,
-      "noiseMm": 17.7912,
+      "coverageAtoB": 0.6395833333333333,
+      "coverageBtoA": 0.6395833333333333,
+      "medianMm": 1202,
+      "noiseMm": 158.63819999999998,
       "trueMm": 1200,
-      "residualMm": 0.5
+      "residualMm": 2
      },
      {
       "a": 62,
       "b": 198,
-      "coverageAtoB": 0.9583333333333334,
-      "coverageBtoA": 0.95,
+      "coverageAtoB": 0.39375,
+      "coverageBtoA": 0.39166666666666666,
       "medianMm": 1375.5,
       "noiseMm": 17.049899999999997,
       "trueMm": 1375.6816492197606,
@@ -4984,12 +4984,12 @@
      {
       "a": 99,
       "b": 198,
-      "coverageAtoB": 0.9583333333333334,
-      "coverageBtoA": 0.9541666666666667,
-      "medianMm": 1499,
-      "noiseMm": 18.5325,
+      "coverageAtoB": 0.3958333333333333,
+      "coverageBtoA": 0.39166666666666666,
+      "medianMm": 1485.5,
+      "noiseMm": 163.82729999999998,
       "trueMm": 1500.8331019803634,
-      "residualMm": -1.8331019803633808
+      "residualMm": -15.33310198036338
      }
     ],
     "notes": ["Good 1 and Good 2 measured about 30 cm apart. Place every tag at least 2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail."],
@@ -7864,7 +7864,7 @@
       "participation": 1,
       "rxFailureRate": 0.04886128364389234,
       "antennaFailureRates": [0.0068322981366459624,0.1282608695652174,0.011490683229813664],
-      "linkCoverage": 0.9607843137254902,
+      "linkCoverage": 0.9598039215686275,
       "biasMm": 0.5645750507619643,
       "noiseMm": 20.7564,
       "diagnostics": {
@@ -7911,9 +7911,9 @@
       "participation": 1,
       "rxFailureRate": 0.045859213250517596,
       "antennaFailureRates": [0.009627329192546583,0.12142857142857143,0.006521739130434782],
-      "linkCoverage": 0.9725490196078431,
+      "linkCoverage": 0.9745098039215686,
       "biasMm": 179.064575050762,
-      "noiseMm": 20.7564,
+      "noiseMm": 20.571075,
       "diagnostics": {
        "rxOk": 9217,
        "rxFailed": 443,
@@ -7954,7 +7954,7 @@
       "uid": 62,
       "label": "Blue",
       "verdict": "fail",
-      "reasons": ["Antenna 2 failed 45% of its receives from the healthy tags, against 1% and 1% through the others. That antenna, its switch, or its connection is suspect.","The healthy tags failed to receive 36% of what it sent through antenna 2, against 1% and 1% through the others. That antenna, its switch, or its connection is suspect.","15% of its receives from the healthy tags failed, against 1% for the tag that hears best.","The healthy tags failed to receive 13% of what it sent, against 1% for the tag heard best.","Ranged to a typical peer in 76% of rounds, against 96% for the other tags."],
+      "reasons": ["Antenna 2 failed 45% of its receives from the healthy tags, against 1% and 1% through the others. That antenna, its switch, or its connection is suspect.","The healthy tags failed to receive 36% of what it sent through antenna 2, against 1% and 1% through the others. That antenna, its switch, or its connection is suspect.","15% of its receives from the healthy tags failed, against 1% for the tag that hears best.","The healthy tags failed to receive 13% of what it sent, against 1% for the tag heard best.","Ranged to a typical healthy tag in 76% of rounds, against 96% for the other tags."],
       "participation": 0.9941176470588236,
       "rxFailureRate": 0.15445134575569358,
       "antennaFailureRates": [0.009627329192546583,0.44503105590062114,0.008695652173913044],
@@ -8005,9 +8005,9 @@
       "participation": 0.9666666666666667,
       "rxFailureRate": 0.04895477815699659,
       "antennaFailureRates": [0.006078055022392835,0.12859884836852206,0.012163892445582587],
-      "linkCoverage": 0.9372549019607843,
+      "linkCoverage": 0.9411764705882353,
       "biasMm": -0.93542494923805,
-      "noiseMm": 20.385749999999998,
+      "noiseMm": 20.571075,
       "diagnostics": {
        "rxOk": 8917,
        "rxFailed": 459,

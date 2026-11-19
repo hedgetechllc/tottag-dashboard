@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RADIO_TEST_MAX_SECONDS, tagName } from '@tottag/schema';
 import {
-  LinkMatrix, ReceptionMatrix, POSITIONS_NOTE, PositionCells, PositionShortcuts, RadioCard, VERDICT_ORDER, usePositions,
+  LinkMatrix, ReceptionMatrix, POSITIONS_NOTE, PositionCells, PositionShortcuts, RadioCard, RadioNotes, VERDICT_ORDER, usePositions,
 } from '../components/RadioResults.tsx';
 import { LiveRadioTest, type LiveDevice, type LiveDeviceStatus, type LiveTestState } from '../features/liveRadioTest.ts';
 import { formatPercent, runRadioCheck } from '../features/radioCheck.ts';
@@ -212,12 +212,12 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
           </div>
           {judged && (
             <>
-              {result.notes.map((note) => <p key={note} className="banner banner--warn">{note}</p>)}
+              <RadioNotes notes={result.notes} />
               <div className="cards">
                 {[...result.devices]
                   .sort((a, b) => VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict] || a.label.localeCompare(b.label))
                   .map((device) => <RadioCard key={device.uid} device={device} provisional={!finished}
-                    referenced={result.references?.length !== 0}
+                    referenced={!!result.references?.length}
                     name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
               </div>
               <LinkMatrix devices={deployment.devices} links={result.links} />

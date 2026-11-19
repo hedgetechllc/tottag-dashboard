@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 
 import {
   BLE_RADIO_STATS_VERSION, LIVE_BIN_MS, LiveRadioRecorder, MAX_NUM_RANGING_DEVICES, NUM_XMIT_ANTENNAS, RADIO_STATS_LAYOUT,
-  analyseRadio, decodeRadioStats, separateReceptions,
+  analyseRadio, decodeRadioStats, NO_REFERENCE_NOTE, separateReceptions,
   type RadioStats, type RadioSummary, type Reception, type SenderCounts,
 } from '../src/index.ts';
 
@@ -81,8 +81,11 @@ test('two bad tags among five no longer make the good ones look bad: each is jud
   assert.ok(qualities.get(0x49)!.hears! < 0.6 && qualities.get(0x49)!.heard! < 0.6);
 });
 
-/** A live summary whose diagnostics carry `bySender`, and ranges to every other tag in every round. */
-function liveSummary(self: number, all: readonly number[], receptions: readonly Reception[], distanceMm = 1000): RadioSummary {
+/** A live summary whose diagnostics carry `bySender`, and ranges to every other tag in every round unless `spread` says otherwise. */
+function liveSummary(
+  self: number, all: readonly number[], receptions: readonly Reception[], distanceMm = 1000,
+  spread: (self: number, peer: number) => number | null = () => 10,
+): RadioSummary {
   const mine = receptions.filter((r) => r.receiver === self);
   const ok = mine.flatMap((r) => r.rxOk);
   const failed = mine.flatMap((r) => r.rxFailed);
@@ -93,7 +96,8 @@ function liveSummary(self: number, all: readonly number[], receptions: readonly 
     experimentStartTime: 1795058040, deploymentUids: all, deploymentLabels: all.map(() => ''), selfUid: self,
     firstMs: 0, lastMs: 8 * LIVE_BIN_MS, binMs: LIVE_BIN_MS,
     rowsByBin: bins.map((bin) => [bin, 30] as const),
-    peers: all.filter((uid) => uid !== self).map((uid) => ({ uid, bins: bins.map((bin) => [bin, 30, distanceMm, 10] as const) })),
+    peers: all.filter((uid) => uid !== self && spread(self, uid) !== null)
+      .map((uid) => ({ uid, bins: bins.map((bin) => [bin, 30, distanceMm, spread(self, uid)!] as const) })),
     diagnostics: {
       rxOk: ok.reduce((a, b) => a + b, 0), rxFailed: failed.reduce((a, b) => a + b, 0),
       rxOkByAntenna: byAntenna((r) => r.rxOk), rxFailedByAntenna: byAntenna((r) => r.rxFailed),
@@ -189,12 +193,13 @@ const analyseWith = (hearing: ReadonlyMap<number, readonly number[]>, sending: R
   return analyseRadio({ devices: uids.map((uid) => ({ uid, label: uid.toString(16), summary: liveSummary(uid, uids, receptions, distanceMm) })) });
 };
 
-test('with no pair decoding each other 95% both ways, no tag is the yardstick and each is judged on its own counts', () => {
+test('with no pair decoding each other 95% both ways, no tag is the yardstick and every verdict is unknown', () => {
   const result = analyseWith(FLAGGED_HEARING, FLAGGED_SENDING);
   assert.deepEqual(result.references, []);
-  assert.ok(result.notes.some((note) => /^No two tags decoded at least 95% of each other's ranging both ways/.test(note)), result.notes.join(' | '));
+  assert.equal(result.notes[0], NO_REFERENCE_NOTE, 'the reason every verdict is unknown comes first');
+  assert.match(NO_REFERENCE_NOTE, /^No two tags decoded at least 95% of each other's ranging both ways/);
   for (const device of result.devices) {
-    assert.equal(device.verdict, 'fail', `0x${device.uid.toString(16)}: ${device.reasons.join(' | ')}`);
+    assert.equal(device.verdict, 'unknown', `0x${device.uid.toString(16)}: ${device.reasons.join(' | ')}`);
     assert.ok(!device.reasons.some((reason) => /healthy tags/.test(reason)), 'no tag here is healthy');
   }
   // The least bad tag was the yardstick before, measured against itself and passed
@@ -231,6 +236,30 @@ test('tags measured closer than 2 feet are called out, since tags that close rea
     '2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail.'),
     close.notes.join(' | '));
   assert.ok(!analyseWith(three, three, 700).notes.some((note) => /2 feet/.test(note)));
+});
+
+test('a healthy tag is not blamed for a noisy link to a bad one, nor for bad tags that never ranged with it', () => {
+  // Five tags on the bench: three with damaged antennas that never range with each other, and one of them noisy to 94
+  const hearing = new Map<number, readonly number[]>([
+    [0x78, [0.01, 1, 0.01]], [0xbb, [0.01, 0.5, 0.01]], [0xf5, [0.01, 0.5, 0.01]], [0x94, GOOD], [0x51, GOOD],
+  ]);
+  const sending = new Map<number, readonly number[]>([
+    [0x78, [0.83, 1, 1]], [0xbb, [0.03, 0.75, 0.94]], [0xf5, [0.02, 0.8, 0.99]], [0x94, GOOD], [0x51, GOOD],
+  ]);
+  const uids = [...hearing.keys()];
+  const bad = new Set([0x78, 0xbb, 0xf5]);
+  const spread = (a: number, b: number) => (bad.has(a) && bad.has(b) ? null : (a === 0x78 && b === 0x94) || (a === 0x94 && b === 0x78) ? 145 : 10);
+  const receptions = receptionsFrom(hearing, 2400, undefined, undefined, sending);
+  const result = analyseRadio({ devices: uids.map((uid) => ({ uid, label: uid.toString(16), summary: liveSummary(uid, uids, receptions, 1000, spread) })) });
+  assert.deepEqual(result.references, [0x94, 0x51]);
+  for (const uid of [0x94, 0x51]) {
+    const device = result.devices.find((d) => d.uid === uid)!;
+    assert.equal(device.verdict, 'pass', `0x${uid.toString(16)}: ${device.reasons.join(' | ')}`);
+    assert.equal(device.linkCoverage, 1);
+    assert.ok(device.noiseMm! < 20, `0x${uid.toString(16)} spreads ${device.noiseMm} mm to the healthy tags`);
+  }
+  const noisy = result.devices.find((d) => d.uid === 0x78)!;
+  assert.ok(noisy.reasons.includes('Its distances to the healthy tags spread by about 115 mm, against 15 mm for the other tags.'), noisy.reasons.join(' | '));
 });
 
 test('without counts by sender, the check is exactly as before', () => {

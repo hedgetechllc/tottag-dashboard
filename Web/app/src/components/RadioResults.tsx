@@ -4,13 +4,22 @@
 // deployment's logs say nothing about where the tags were.
 
 import { useEffect, useMemo, useState } from 'react';
-import type { RadioCheckDevice, RadioCheckLink, RadioVerdict, Reception } from '@tottag/schema';
+import { NO_REFERENCE_NOTE, type RadioCheckDevice, type RadioCheckLink, type RadioVerdict, type Reception } from '@tottag/schema';
 import { Stat } from './Stat.tsx';
 import { circlePositions, formatMm, formatPercent, linePositions, type Positions, type RadioDevice } from '../features/radioCheck.ts';
 
-export const VERDICT_LABEL: Record<RadioVerdict, string> = { pass: 'Pass', check: 'Check', fail: 'Fail', missing: 'No log' };
-export const VERDICT_CLASS: Record<RadioVerdict, string> = { pass: 'ok', check: 'note', fail: 'warning', missing: 'error' };
-export const VERDICT_ORDER: Record<RadioVerdict, number> = { fail: 0, check: 1, missing: 2, pass: 3 };
+export const VERDICT_LABEL: Record<RadioVerdict, string> = { pass: 'Pass', check: 'Check', fail: 'Fail', missing: 'No log', unknown: 'Unknown' };
+export const VERDICT_CLASS: Record<RadioVerdict, string> = { pass: 'ok', check: 'note', fail: 'warning', missing: 'error', unknown: 'unknown' };
+export const VERDICT_ORDER: Record<RadioVerdict, number> = { fail: 0, check: 1, unknown: 2, missing: 3, pass: 4 };
+
+/** The check's notes, the one saying why every verdict is unknown in the verdict's own colour. */
+export function RadioNotes({ notes }: { notes: readonly string[] }) {
+  return (
+    <>
+      {notes.map((note) => <p key={note} className={`banner banner--${note === NO_REFERENCE_NOTE ? 'unknown' : 'warn'}`}>{note}</p>)}
+    </>
+  );
+}
 
 /** Entered positions as typed, so a half-typed "1." is not reformatted under the cursor. */
 type PositionText = Record<number, { x: string; y: string }>;
@@ -103,7 +112,7 @@ export function PositionShortcuts({ uids, positions }: { uids: readonly number[]
 }
 
 /** One tag's verdict. Provisional while a live test is still running, when the verdict can still change. */
-export function RadioCard({ device, name, provisional = false, referenced = true }: {
+export function RadioCard({ device, name, provisional = false, referenced = false }: {
   device: RadioCheckDevice; name: string; provisional?: boolean;
   /** Whether any tag was shown healthy to measure this one against, rather than all the others. */
   referenced?: boolean;
@@ -141,9 +150,9 @@ export function RadioCard({ device, name, provisional = false, referenced = true
               <Stat label="Failed by antenna" value={antennas || '—'} />
             </>
           )}
-          <Stat label="Typical link" value={formatPercent(device.linkCoverage)} hint="of rounds with a range to a given peer" />
+          <Stat label="Typical link" value={formatPercent(device.linkCoverage)} hint={`of rounds with a range to a given ${referenced ? 'healthy tag' : 'peer'}`} />
           <Stat label="Distance offset" value={device.biasMm === null ? '—' : `${device.biasMm > 0 ? '+' : ''}${Math.round(device.biasMm)} mm`} />
-          <Stat label="Distance spread" value={formatMm(device.noiseMm)} />
+          <Stat label="Distance spread" value={formatMm(device.noiseMm)} hint={referenced ? 'to the healthy tags' : undefined} />
         </dl>
       )}
       {device.reasons.length > 0 && (

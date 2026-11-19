@@ -226,14 +226,15 @@ const SCENARIOS: readonly Scenario[] = [
     positions: circle([0x4e, 0x63, 0x9c, 0xc6], 0.15),
   },
   {
+    // Links judged only to the healthy pair: 63 noisy and patchy to them, C6 seldom ranging with them
     name: 'a healthy pair among flagged tags, the pair too close together',
     minutes: 5,
     seed: 0x143ec6,
     devices: [
       { uid: 0x14, label: 'Good 1', hearing: [1, 1, 1] },
       { uid: 0x3e, label: 'Good 2', hearing: [0.99, 1, 1] },
-      { uid: 0x63, label: '63', hearing: [0.7, 0.51, 0.99], sending: [0.49, 0.89, 0.49] },
-      { uid: 0xc6, label: 'C6', hearing: [0.97, 0.98, 0.96], sending: [0.92, 0.9, 0.94] },
+      { uid: 0x63, label: '63', hearing: [0.7, 0.51, 0.99], sending: [0.49, 0.89, 0.49], noiseMm: 160, coverage: 0.65 },
+      { uid: 0xc6, label: 'C6', hearing: [0.97, 0.98, 0.96], sending: [0.92, 0.9, 0.94], coverage: 0.4 },
     ],
     positions: [[0x14, 0, 0], [0x3e, 0.3, 0], [0x63, 1.5, 0], [0xc6, 0.75, 1.3]],
   },

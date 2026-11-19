@@ -254,6 +254,7 @@
 .banner--info { background: var(--info-wash); border-color: var(--info-line); color: var(--info); }
 .banner--warn { background: var(--warn-wash); border-color: var(--warn-line); color: var(--warn); }
 .banner--crit { background: var(--crit-wash); border-color: var(--crit-line); color: var(--crit); }
+.banner--unknown { background: var(--unknown-wash); border-color: var(--unknown-line); color: var(--unknown); }
 
 .pill {
   display: inline-flex;
@@ -300,6 +301,7 @@
 .badge--note { background: var(--note-wash); color: var(--note); }
 .badge--warning { background: var(--warn-wash); color: var(--warn); }
 .badge--error { background: var(--crit-wash); color: var(--crit); }
+.badge--unknown { background: var(--unknown-wash); color: var(--unknown); }
 
 /* --- Tags in a deployment ------------------------------------------------------------------------- */
 
@@ -505,6 +507,7 @@
 .summary-line { font-size: var(--text-base); color: var(--ink-2); }
 .summary-line__warn { color: var(--warn); font-weight: var(--weight-medium); }
 .summary-line__crit { color: var(--crit); font-weight: var(--weight-medium); }
+.summary-line__unknown { color: var(--unknown); font-weight: var(--weight-medium); }
 
 .failures { display: flex; flex-direction: column; gap: 4px; }
 .failures__item { font-size: var(--text-sm); color: var(--crit); }
@@ -524,6 +527,7 @@
 .card--note { border-top-color: var(--note-line); }
 .card--warning { border-top-color: var(--warn-line); }
 .card--error { border-top-color: var(--crit); }
+.card--unknown { border-top-color: var(--unknown-line); }
 .card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .card__title { font-size: var(--text-md); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
 .card__sub { font-size: var(--text-xs); color: var(--ink-3); margin-top: 2px; }

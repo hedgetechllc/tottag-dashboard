@@ -21,7 +21,7 @@ test('the Python parity fixture holds this package\'s current radio-check answer
 test('the parity scenarios reach every verdict and every kind of reason, so the Python side is held to all of them', () => {
   const fixture = buildRadioParityFixture();
   const devices = [...fixture.analysis.flatMap((scenario) => scenario.expected.devices), ...fixture.live.expected.analysis.devices];
-  for (const verdict of ['pass', 'check', 'fail', 'missing']) {
+  for (const verdict of ['pass', 'check', 'fail', 'missing', 'unknown']) {
     assert.ok(devices.some((device) => device.verdict === verdict), `no scenario produces a ${verdict}`);
   }
   const reasons = devices.flatMap((device) => device.reasons);
@@ -33,6 +33,7 @@ test('the parity scenarios reach every verdict and every kind of reason, so the 
     /^Antennas? [\d, and]+ failed .* of its receives from the healthy tags/, /^The healthy tags failed to receive .* of what it sent through antennas? /,
     /^\d+% of its receives failed\./, /^The other tags failed to receive \d+% of what it sent\./,
     /^Antennas? [\d, and]+ failed .* of its receives, against/, /^The other tags failed to receive .* of what it sent through antennas? /,
+    /^Ranged to a typical healthy tag in only/, /^Ranged to a typical healthy tag in \d+% of rounds, against/, /^Its distances to the healthy tags spread/,
   ]) {
     assert.ok(reasons.some((reason) => pattern.test(reason)), `no scenario produces a reason matching ${pattern}`);
   }
