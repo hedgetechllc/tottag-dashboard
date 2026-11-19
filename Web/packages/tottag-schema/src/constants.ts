@@ -486,7 +486,8 @@ export const RADIO_TIMING_LAYOUT = snapshot.structs.storage_radio_timing_t;
 
 /**
  * Value of BLE_LIVE_STATS_RADIO_CHAR: a device's radio counters since it booted, read live over Bluetooth, with its
- * role, schedule size and any radio test's state. Versioned by its first byte.
+ * role, schedule size and any radio test's state, and its receive counters again split by sender. Versioned by its
+ * first byte.
  */
 export const RADIO_STATS_LAYOUT = snapshot.structs.ble_radio_stats_t;
 

@@ -1,0 +1,166 @@
+// Receives counted by sender, as the radio statistics carry them: decoding them, banking them across a restart, and
+// telling a tag that hears poorly from one the others cannot hear. The scenarios are the two live tests that
+// motivated it: two tags with damaged antennas among five, whose failures showed up in the good tags' counts too, and
+// three good tags with one of them near something transmitting.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  BLE_RADIO_STATS_VERSION, LIVE_BIN_MS, LiveRadioRecorder, MAX_NUM_RANGING_DEVICES, NUM_XMIT_ANTENNAS, RADIO_STATS_LAYOUT,
+  analyseRadio, decodeRadioStats, separateReceptions,
+  type RadioStats, type RadioSummary, type Reception, type SenderCounts,
+} from '../src/index.ts';
+
+/** A radio statistics read with these senders, every other counter zero. */
+function encodeStats(senders: readonly SenderCounts[], version = BLE_RADIO_STATS_VERSION): Uint8Array {
+  const out = new Uint8Array(RADIO_STATS_LAYOUT.size);
+  const view = new DataView(out.buffer);
+  const at = (name: string) => RADIO_STATS_LAYOUT.fields.find((f) => f.name === name)!.offset;
+  view.setUint8(at('version'), version);
+  view.setUint8(at('sender_count'), senders.length);
+  senders.forEach((sender, row) => {
+    view.setUint8(at('sender_uids') + row, sender.uid);
+    for (let antenna = 0; antenna < NUM_XMIT_ANTENNAS; antenna += 1) {
+      view.setUint32(at('sender_rx_ok') + (row * NUM_XMIT_ANTENNAS + antenna) * 4, sender.rxOkByAntenna[antenna]!, true);
+      view.setUint32(at('sender_rx_failed') + (row * NUM_XMIT_ANTENNAS + antenna) * 4, sender.rxFailedByAntenna[antenna]!, true);
+    }
+  });
+  return out;
+}
+
+test('a radio statistics read carries the receives by sender, and an unknown layout is refused', () => {
+  const senders = [
+    { uid: 0x3e, rxOkByAntenna: [1000, 2000, 3000], rxFailedByAntenna: [1, 2, 3] },
+    { uid: 0x48, rxOkByAntenna: [0, 1990, 400], rxFailedByAntenna: [2000, 10, 1600] },
+  ];
+  assert.equal(RADIO_STATS_LAYOUT.size, 309);
+  assert.equal(MAX_NUM_RANGING_DEVICES, 10);
+  assert.deepEqual(decodeRadioStats(encodeStats(senders)).senders, senders);
+  assert.deepEqual(decodeRadioStats(encodeStats([])).senders, []);
+  assert.throws(() => decodeRadioStats(encodeStats(senders, BLE_RADIO_STATS_VERSION - 1)), /layout 2/);
+  assert.throws(() => decodeRadioStats(new Uint8Array(58)), /309 bytes/);
+});
+
+/** Every tag's receives from every other, from per-antenna qualities: p(r decodes t through a) = q[r][a] × q[t][a]. */
+function receptionsFrom(quality: ReadonlyMap<number, readonly number[]>, perCell = 2400, extraMiss = new Map<number, readonly number[]>()): Reception[] {
+  const out: Reception[] = [];
+  for (const [receiver, rq] of quality) {
+    for (const [sender, sq] of quality) {
+      if (receiver === sender) continue;
+      const success = rq.map((q, a) => q * sq[a]! * (1 - (extraMiss.get(receiver)?.[a] ?? 0)));
+      const rxOk = success.map((p) => Math.round(perCell * p));
+      out.push({ receiver, sender, rxOk, rxFailed: rxOk.map((ok) => perCell - ok) });
+    }
+  }
+  return out;
+}
+
+const GOOD = [1, 1, 1];
+const FIVE = new Map<number, readonly number[]>([
+  [0x14, GOOD], [0x3e, GOOD], [0xf4, GOOD],
+  [0x48, [0.05, 0.99, 0.3]],   // antennas 1 and 3 all but gone
+  [0x49, [0.4, 0.8, 0.35]],
+]);
+
+test('two bad tags among five no longer make the good ones look bad: each is judged by its own factor', () => {
+  const qualities = separateReceptions([...FIVE.keys()], receptionsFrom(FIVE));
+  for (const uid of [0x14, 0x3e, 0xf4]) {
+    const q = qualities.get(uid)!;
+    assert.ok(q.hears! > 0.99 && q.heard! > 0.99, `0x${uid.toString(16)} hears ${q.hears} and is heard ${q.heard}`);
+  }
+  // The damaged antennas show on both sides, since an antenna that cannot receive cannot transmit either
+  assert.ok(qualities.get(0x48)!.hearsByAntenna[0]! < 0.1 && qualities.get(0x48)!.heardByAntenna[0]! < 0.1);
+  assert.ok(qualities.get(0x48)!.hearsByAntenna[1]! > 0.95);
+  assert.ok(qualities.get(0x49)!.hears! < 0.6 && qualities.get(0x49)!.heard! < 0.6);
+});
+
+/** A live summary whose diagnostics carry `bySender`, and ranges to every other tag in every round. */
+function liveSummary(self: number, all: readonly number[], receptions: readonly Reception[]): RadioSummary {
+  const mine = receptions.filter((r) => r.receiver === self);
+  const ok = mine.flatMap((r) => r.rxOk);
+  const failed = mine.flatMap((r) => r.rxFailed);
+  const byAntenna = (counts: (r: Reception) => readonly number[]) =>
+    Array.from({ length: NUM_XMIT_ANTENNAS }, (_, a) => mine.reduce((sum, r) => sum + counts(r)[a]!, 0));
+  const bins = Array.from({ length: 8 }, (_, bin) => bin);
+  return {
+    experimentStartTime: 1795058040, deploymentUids: all, deploymentLabels: all.map(() => ''), selfUid: self,
+    firstMs: 0, lastMs: 8 * LIVE_BIN_MS, binMs: LIVE_BIN_MS,
+    rowsByBin: bins.map((bin) => [bin, 30] as const),
+    peers: all.filter((uid) => uid !== self).map((uid) => ({ uid, bins: bins.map((bin) => [bin, 30, 1000, 10] as const) })),
+    diagnostics: {
+      rxOk: ok.reduce((a, b) => a + b, 0), rxFailed: failed.reduce((a, b) => a + b, 0),
+      rxOkByAntenna: byAntenna((r) => r.rxOk), rxFailedByAntenna: byAntenna((r) => r.rxFailed),
+      wakeFailures: 0, irqStuck: 0, rxArmLate: 0, txLate: 0, samples: 20,
+      bySender: mine.map((r) => ({ uid: r.sender, rxOkByAntenna: r.rxOk, rxFailedByAntenna: r.rxFailed })),
+    },
+    aborts: 0,
+  };
+}
+
+const analyse = (quality: Map<number, readonly number[]>, extraMiss?: Map<number, readonly number[]>) => {
+  const uids = [...quality.keys()];
+  const receptions = receptionsFrom(quality, 2400, extraMiss);
+  return analyseRadio({ devices: uids.map((uid) => ({ uid, label: uid.toString(16), summary: liveSummary(uid, uids, receptions) })) });
+};
+
+test('with counts by sender, the good tags pass and the bad ones fail for receiving and sending both', () => {
+  const result = analyse(FIVE);
+  const verdict = (uid: number) => result.devices.find((device) => device.uid === uid)!;
+  for (const uid of [0x14, 0x3e, 0xf4]) {
+    assert.equal(verdict(uid).verdict, 'pass', `0x${uid.toString(16)}: ${verdict(uid).reasons.join(' ')}`);
+    assert.ok(verdict(uid).rxFailureRate! > 0.2, 'its raw receive failures are still inflated, which is the point');
+  }
+  for (const uid of [0x48, 0x49]) {
+    assert.equal(verdict(uid).verdict, 'fail');
+    assert.ok(verdict(uid).reasons.some((reason) => /of its receives failed, against/.test(reason)));
+    assert.ok(verdict(uid).reasons.some((reason) => /of what it sent was not received/.test(reason)));
+  }
+  assert.ok(result.receptions?.length, 'the receptions are there for the page to show');
+});
+
+test('a tag near something transmitting fails to hear everyone on one antenna, and is still heard by all', () => {
+  const three = new Map<number, readonly number[]>([[0x14, GOOD], [0x3e, GOOD], [0xf4, GOOD]]);
+  const result = analyse(three, new Map([[0xf4, [0.26, 0, 0]]]));
+  const f4 = result.devices.find((device) => device.uid === 0xf4)!;
+  assert.ok(f4.reasons.some((reason) => /^Antenna 1: .* of its receives through it failed/.test(reason)), f4.reasons.join(' '));
+  assert.ok(!f4.reasons.some((reason) => /was not received/.test(reason)), 'the others hear it fine');
+  assert.equal(result.devices.find((device) => device.uid === 0x14)!.verdict, 'pass');
+});
+
+test('without counts by sender, the check is exactly as before', () => {
+  const uids = [...FIVE.keys()];
+  const receptions = receptionsFrom(FIVE);
+  const plain = (uid: number) => {
+    const { bySender: _, ...diagnostics } = liveSummary(uid, uids, receptions).diagnostics!;
+    return { ...liveSummary(uid, uids, receptions), diagnostics };
+  };
+  const result = analyseRadio({ devices: uids.map((uid) => ({ uid, label: '', summary: plain(uid) })) });
+  assert.equal(result.receptions, undefined);
+  assert.ok(result.devices.every((device) => device.quality === undefined));
+});
+
+test('a live recording banks receives by sender across a restart along with everything else', () => {
+  const stats = (rxOk: number, senders: readonly SenderCounts[]): RadioStats => ({
+    role: 'ROLE_PARTICIPANT', scheduleSize: 2, testRunning: true, testWaiting: false, testSecondsLeft: 0,
+    roundsScheduled: rxOk, roundsRanged: rxOk, rxOk, rxFailed: 0, rxOkByAntenna: [rxOk, 0, 0], rxFailedByAntenna: [0, 0, 0],
+    txLate: 0, rxArmLate: 0, isrOverBudget: 0, wakeMaxUs: 0, wakeFailures: 0, antenna: 0, antennaChanges: 0, senders,
+  });
+  const recorder = new LiveRadioRecorder({ startTime: 1795058040, deploymentUids: [0x14, 0x3e], deploymentLabels: ['', ''], selfUid: 0x14 });
+  recorder.addStats(1795058040_000 + 5000, stats(60, [{ uid: 0x3e, rxOkByAntenna: [10, 20, 30], rxFailedByAntenna: [1, 2, 3] }]));
+  recorder.addStats(1795058040_000 + 10000, stats(2, [{ uid: 0x3e, rxOkByAntenna: [2, 0, 0], rxFailedByAntenna: [0, 0, 0] }]));   // restarted
+  assert.deepEqual(recorder.summary().diagnostics!.bySender, [{ uid: 0x3e, rxOkByAntenna: [12, 20, 30], rxFailedByAntenna: [1, 2, 3] }]);
+});
+
+test('a tag that heard nobody leaves the check on its raw counts, as before', () => {
+  const uids = [...FIVE.keys()];
+  const receptions = receptionsFrom(FIVE);
+  const empty = (uid: number) => {
+    const summary = liveSummary(uid, uids, receptions);
+    return { ...summary, diagnostics: { ...summary.diagnostics!, bySender: [] } };
+  };
+  const result = analyseRadio({ devices: uids.map((uid) => ({ uid, label: '', summary: empty(uid) })) });
+  assert.equal(result.receptions, undefined);
+  assert.ok(result.devices.every((device) => device.quality === undefined));
+  assert.ok(result.devices.some((device) => device.reasons.some((reason) => /of its ranging receives failed/.test(reason))));
+});

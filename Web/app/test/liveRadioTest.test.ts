@@ -38,6 +38,8 @@ class FakeDevice {
   refuse = false;
   /** Out of reach: neither on its charger nor close by. */
   away = false;
+  /** Receives from one other tag, uid 0x77, through every antenna; otherwise it has heard nobody. */
+  hearsSomeone = false;
   bootedAt = 0;
   starts: Array<[number, number, number]> = [];
   stops = 0;
@@ -105,6 +107,7 @@ class FakeDevice {
       rxOkByAntenna: new Array(NUM_XMIT_ANTENNAS).fill(Math.floor(rounds * 40 / 3)),
       rxFailedByAntenna: new Array(NUM_XMIT_ANTENNAS).fill(Math.floor(rounds / 3)),
       txLate: 0, rxArmLate: 0, isrOverBudget: 0, wakeMaxUs: 2100, wakeFailures: 0, antenna: 0, antennaChanges: 0,
+      senders: this.hearsSomeone ? [{ uid: 0x77, rxOkByAntenna: [rounds, rounds, rounds], rxFailedByAntenna: [0, 0, 1] }] : [],
     };
   }
 }
@@ -253,4 +256,19 @@ test('a device without the live radio link is turned away with a reason', () => 
   const old = new FakeDevice(0x0b, clock).connection();
   const reason = session.add({ ...old, liveRadio: undefined });
   assert.match(reason ?? '', /newer firmware/);
+});
+
+test('a tag\'s receives by sender, read with its counters, are in its recording', async () => {
+  const clock = new Clock();
+  const hearing = new FakeDevice(0x02, clock);
+  hearing.hearsSomeone = true;
+  const { session } = setup(hearing, new FakeDevice(0x0b, clock));
+  await session.start(300);
+  await clock.advance(20_000);
+  const logs = session.deployment()!.logs;
+  const bySender = logs.get(0x02)!.summary.diagnostics!.bySender;
+  assert.equal(bySender?.length, 1);
+  assert.equal(bySender![0]!.uid, 0x77);
+  assert.ok(bySender![0]!.rxOkByAntenna[0]! > 0);
+  assert.deepEqual(logs.get(0x0b)!.summary.diagnostics!.bySender, [], 'heard nobody');
 });

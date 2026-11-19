@@ -93,7 +93,8 @@ export interface TagConnection {
 
 /**
  * What a page asks of the list a tag is picked from. Only the TotTag Helper's list is the dashboard's
- * own; the browser's choosers cannot be told any of this, and ignore it.
+ * own; the browser's choosers cannot be told any of this and ignore it, except that the Bluetooth one
+ * honours `chargingOnly`.
  */
 export interface PickOptions {
   /** False leaves tags plugged in by USB out of the list, for a use only Bluetooth serves. */
@@ -103,6 +104,16 @@ export interface PickOptions {
    * (`02:31`), kept out of the way unless asked for and marked with `label` when they are.
    */
   readonly done?: { readonly ids: ReadonlySet<string>; readonly label: string };
+  /**
+   * Leave out tags whose advertisement says they are off their charger: a page that writes a deployment
+   * or downloads a log can do nothing with them, since a tag does either only while charging.
+   */
+  readonly chargingOnly?: boolean;
+  /**
+   * The tags a deployment record lists, by the last two parts of their address (`02:31`), and what to call
+   * that deployment: the list shows only these until asked for the rest, and ticks each as it is found.
+   */
+  readonly expected?: { readonly ids: ReadonlySet<string>; readonly label: string };
 }
 
 export interface TagTransport {

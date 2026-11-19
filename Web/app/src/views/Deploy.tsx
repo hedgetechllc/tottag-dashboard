@@ -8,7 +8,7 @@ import { downloadText } from '../adapters/download.ts';
 import { DateTimeField, Field, TimeField, TimezoneField } from '../components/Fields.tsx';
 import { TagPills } from '../components/TagFacts.tsx';
 import { describeSchedule, draftProblems, draftToConfig, recordBaseName, type DraftDevice } from '../features/schedule.ts';
-import { assessSnapshot, batteryLow, replaceDecision, storedFromDetails, type ReplaceDecision, type TagCheck } from '../features/tagStatus.ts';
+import { assessSnapshot, batteryLow, OFF_CHARGER_HINT, replaceDecision, sameStored, storedFromDetails, type ReplaceDecision, type TagCheck } from '../features/tagStatus.ts';
 import type { DraftApi } from '../features/useDeploymentDraft.ts';
 import { describeKnownTag, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
 import { useDownloaded, useLastRecord, useTagChecks } from '../features/useTagRecords.ts';
@@ -16,7 +16,10 @@ import {
   bluetoothTransport, errorText, pickAgainWith, reachableWithoutChooser, routeTo, unlistedNote, unreachableMessage, useReachableTags, withTag,
 } from '../lib/tagAccess.ts';
 import { useNow } from '../lib/useNow.ts';
-import type { TagConnection, TagTransport } from '../ports/tagTransport.ts';
+import type { PickOptions, TagConnection, TagTransport } from '../ports/tagTransport.ts';
+
+/** A tag takes a deployment only on its charger, so the lists offer only tags that say they are on one. */
+const ONLY_CHARGING: PickOptions = { chargingOnly: true };
 
 /** Long enough to find a tag in a bag, short enough not to be a nuisance. Matches the Python tool. */
 const BUZZ_SECONDS = 10;
@@ -147,7 +150,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
         const tags = transport.requestDevices((count) => {
           total = count;
           setNotice({ tone: 'info', text: `Connecting to the first of ${count} tag${count === 1 ? '' : 's'}…` });
-        });
+        }, ONLY_CHARGING);
         for (let index = 1; ; index += 1) {
           const step = await tags.next();
           if (step.done) break;
@@ -169,7 +172,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
 
       // Which tag was picked cannot be known before connecting: over Bluetooth the chooser shows only
       // advertised names and the address comes from GATT System ID; over USB it has to be asked for.
-      const connection = await transport.requestDevice(() => setNotice({ tone: 'info', text: 'Connecting to the tag…' }));
+      const connection = await transport.requestDevice(() => setNotice({ tone: 'info', text: 'Connecting to the tag…' }), ONLY_CHARGING);
       if (!connection) return;
       setNotice({ tone: 'info', text: `Reading ${tagName(connection.identity.eui)}…` });
       const outcome = await takeIn(connection);
@@ -192,7 +195,7 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
     const transport = pickAgainWith(route);
     setBusyKey(keyOf(device.eui));
     try {
-      const connection = await transport.requestDevice();
+      const connection = await transport.requestDevice(undefined, ONLY_CHARGING);
       if (!connection) return;
       try {
         remember(connection.identity);
@@ -287,8 +290,13 @@ export function Deploy({ draftApi }: { draftApi: DraftApi }) {
             const readback = await connection.readExperiment();
             checks.record(device.eui, { ...check, checkedAt: Math.floor(Date.now() / 1000), stored: storedFromDetails(readback) });
             const differences = diffReadback(config, readback);
+            // Holding exactly what it held before means the write never took, rather than went wrong
+            const kept = sameStored(storedFromDetails(readback), check.stored);
             return differences.length
-              ? { outcome: 'mismatch' as const, detail: differences.join(' '), batteryMv: check.batteryMv }
+              ? {
+                  outcome: 'mismatch' as const, batteryMv: check.batteryMv,
+                  detail: kept ? `It did not take the new deployment, and still holds ${check.stored ? 'the one it had' : 'none'}. ${OFF_CHARGER_HINT}` : differences.join(' '),
+                }
               : {
                   outcome: 'confirmed' as const, batteryMv: check.batteryMv,
                   firmware: connection.identity.firmware ?? undefined, hardware: connection.identity.hardware ?? undefined,

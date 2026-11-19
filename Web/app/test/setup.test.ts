@@ -12,7 +12,7 @@ import {
   defaultDraft, describeSchedule, draftProblems, draftToConfig, migrateV1Draft, nextDraft, recordBaseName,
   type DeploymentDraft,
 } from '../src/features/schedule.ts';
-import { assessSnapshot, batteryLow, replaceDecision, storedFromDetails } from '../src/features/tagStatus.ts';
+import { assessSnapshot, batteryLow, replaceDecision, sameStored, storedFromDetails } from '../src/features/tagStatus.ts';
 import { PLAIN_FINDINGS } from '../src/features/plainLanguage.ts';
 import { buildReport } from '../src/features/deployment.ts';
 import { summariseLog } from '../src/features/logSummary.ts';
@@ -192,4 +192,17 @@ test('a log card names its tag and lists the other tags it was scheduled with', 
   assert.ok(summary.peers.length > 0);
   assert.ok(summary.peers.every((peer) => peer.name.length > 0));
   assert.ok(summary.firstRecord !== null && summary.lastRecord !== null && summary.lastRecord >= summary.firstRecord);
+});
+
+test('a tag that reads back the deployment it held before did not take the change', () => {
+  const held = {
+    startTime: 1795058040, endTime: 1795060800, useDailyTimes: false, dailyStartTime: 0, dailyEndTime: 0,
+    devices: [{ eui: [0x0b, 0x02, 0x42, 0xe5, 0x98, 0xc0], label: '0B' }], cancelled: false,
+  };
+  assert.equal(sameStored(held, { ...held }), true, 'off its charger, it kept it');
+  assert.equal(sameStored(held, { ...held, cancelled: true }), false, 'canceled');
+  assert.equal(sameStored(held, { ...held, startTime: held.startTime + 60 }), false, 'rescheduled');
+  assert.equal(sameStored(held, { ...held, devices: [{ ...held.devices[0]!, label: 'CG1' }] }), false, 'relabelled');
+  assert.equal(sameStored(null, null), true, 'held none and still holds none');
+  assert.equal(sameStored(null, held), false);
 });

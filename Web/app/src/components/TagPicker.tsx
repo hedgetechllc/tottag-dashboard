@@ -52,6 +52,8 @@ interface Row {
   readonly title?: string;
   /** The last two parts of its address, `02:31`, when its name says them. */
   readonly id: string | null;
+  /** Whether its advertisement says it is off its charger. */
+  readonly offCharger?: boolean;
 }
 
 const pluggedRow = (tag: PluggedTag): Row => {
@@ -66,19 +68,25 @@ const pluggedRow = (tag: PluggedTag): Row => {
   };
 };
 
-const nearbyRow = (tag: ScannedTag): Row => ({
-  key: `ble:${tag.id}`,
-  pick: { kind: 'bluetooth', device: tag.id },
-  name: tag.name,
-  detail: signalWords(tag.rssi),
-  title: `${tag.rssi} dBm`,
-  // Firmware older than `TotTag 02:31` names says less, and such a tag is never taken for one already done
-  id: addressInName(tag.name),
-});
+/** A tag nearby; one off its charger cannot be picked where a page needs it charging, and says so. */
+const nearbyRow = (tag: ScannedTag, chargingOnly: boolean): Row => {
+  const offCharger = tag.onCharger === false;
+  return {
+    key: `ble:${tag.id}`,
+    pick: chargingOnly && offCharger ? null : { kind: 'bluetooth', device: tag.id },
+    name: tag.name,
+    detail: chargingOnly && offCharger ? 'Not on its charger' : signalWords(tag.rssi),
+    title: `${tag.rssi} dBm`,
+    // Firmware older than `TotTag 02:31` names says less, and such a tag is never taken for one already done
+    id: addressInName(tag.name),
+    offCharger,
+  };
+};
 
 function TagPicker({ options, onDone }: { options: Asking; onDone: (picked: PickedTag[]) => void }) {
-  const { multiple, done } = options;
+  const { multiple, done, expected } = options;
   const usb = options.usb ?? true;
+  const chargingOnly = options.chargingOnly ?? false;
   const { scanning, nearby } = useSyncExternalStore(helper.subscribe, helper.getSnapshot);
   const plugged = useSyncExternalStore(helperUsb.subscribe, helperUsb.getSnapshot);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -86,6 +94,9 @@ function TagPicker({ options, onDone }: { options: Asking; onDone: (picked: Pick
   const [chosen, setChosen] = useState<readonly string[]>([]);
   const [search, setSearch] = useState('');
   const [showDone, setShowDone] = useState(false);
+  const [showOthers, setShowOthers] = useState(false);
+  /** Tags ticked because the deployment record lists them, each only once, so one unticked stays unticked. */
+  const autoTicked = useRef(new Set<string>());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -109,19 +120,39 @@ function TagPicker({ options, onDone }: { options: Asking; onDone: (picked: Pick
   }, [usb]);
 
   const isDone = (row: Row) => !!done && !!row.id && done.ids.has(row.id);
+  const isExpected = (row: Row) => !!expected && !!row.id && expected.ids.has(row.id);
+  const isOff = (row: Row) => chargingOnly && !!row.offCharger;
   const wanted = /[0-9a-z]/i.test(search);
-  // A tag searched for is shown even if it is done with: whoever typed its name means it
-  const shown = (row: Row) => (wanted ? nameMatches(row.name, search) : !isDone(row) || showDone);
-  // Plugged in first: plugging a tag in is a plain statement of which tag is meant. Tags done with go last.
-  const order = (rows: Row[]) => [...rows.filter((row) => !isDone(row)), ...rows.filter(isDone)];
+  // A tag searched for is shown whatever else is true of it: whoever typed its name means it
+  const shown = (row: Row) => (wanted ? nameMatches(row.name, search)
+    : (!isDone(row) || showDone) && !isOff(row) && (!expected || showOthers || isExpected(row)));
+  // Plugged in first: plugging a tag in is a plain statement of which tag is meant. Then the deployment's tags,
+  // and the tags done with last.
+  const order = (rows: Row[]) => [
+    ...rows.filter((row) => !isDone(row) && isExpected(row)),
+    ...rows.filter((row) => !isDone(row) && !isExpected(row)),
+    ...rows.filter(isDone),
+  ];
   const all = [
     { title: 'Plugged into this computer', rows: usb ? order(plugged.map(pluggedRow)) : [] },
-    { title: 'Nearby', rows: order(nearby.map(nearbyRow)) },
+    { title: 'Nearby', rows: order(nearby.map((tag) => nearbyRow(tag, chargingOnly))) },
   ];
   const groups = all.map((group) => ({ ...group, rows: group.rows.filter(shown) })).filter((group) => group.rows.length);
   const rows = groups.flatMap((group) => group.rows);
   const everyRow = all.flatMap((group) => group.rows);
   const hiddenDone = wanted || showDone ? 0 : everyRow.filter(isDone).length;
+  const hiddenOff = wanted ? 0 : everyRow.filter((row) => isOff(row) && (!isDone(row) || showDone)).length;
+  const hiddenOthers = wanted || showOthers || !expected ? 0
+    : everyRow.filter((row) => !isExpected(row) && !isOff(row) && (!isDone(row) || showDone)).length;
+
+  // Tick the deployment's tags as they turn up, unless already done with; each once, so unticking one sticks
+  useEffect(() => {
+    if (!multiple || !expected) return;
+    const fresh = everyRow.filter((row) => row.pick && isExpected(row) && !isDone(row) && !autoTicked.current.has(row.key));
+    if (!fresh.length) return;
+    for (const row of fresh) autoTicked.current.add(row.key);
+    setChosen((current) => [...new Set([...current, ...fresh.map((row) => row.key)])]);
+  });
   const pickable = rows.filter((row) => row.pick);
   const toggle = (key: string) =>
     setChosen((current) => (current.includes(key) ? current.filter((each) => each !== key) : [...current, key]));
@@ -135,7 +166,7 @@ function TagPicker({ options, onDone }: { options: Asking; onDone: (picked: Pick
       <h2 id="picker-title" className="panel__title">{multiple ? 'Add tags' : 'Pick a tag'}</h2>
       <p className="panel__note" role="status">
         {scanning
-          ? `Looking for tags nearby. A tag shows up while it is on its charger or recording${usb ? ', or plugged into this computer with its USB cable' : ''}.`
+          ? `Looking for tags nearby. A tag shows up while it is on its charger${chargingOnly ? '' : ' or recording'}${usb ? ', or plugged into this computer with its USB cable' : ''}.`
           : 'The tags the last scan found.'}
       </p>
       <input type="search" className="input" placeholder="Find a tag, such as 02:31" aria-label="Find a tag"
@@ -143,8 +174,10 @@ function TagPicker({ options, onDone }: { options: Asking; onDone: (picked: Pick
       {rows.length === 0 ? (
         <p className="empty">
           {wanted ? `No tag found matches “${search.trim()}”.`
-            : hiddenDone ? 'Every tag found so far is one already done.'
-              : scanning ? 'None found yet.' : 'None found.'}
+            : expected && !showOthers ? `None of the tags in ${expected.label} found${scanning ? ' yet' : ''}.`
+              : hiddenDone ? 'Every tag found so far is one already done.'
+                : hiddenOff ? 'Every tag found so far is off its charger.'
+                  : scanning ? 'None found yet.' : 'None found.'}
         </p>
       ) : groups.map((group) => (
         <section key={group.title}>
@@ -181,6 +214,20 @@ function TagPicker({ options, onDone }: { options: Asking; onDone: (picked: Pick
             ? <button type="button" className="link" onClick={() => setShowDone(false)}>Hide the tags {done.label.toLowerCase()}</button>
             : <>{hiddenDone === 1 ? 'One tag' : `${hiddenDone} tags`} {done.label.toLowerCase()} {hiddenDone === 1 ? 'is' : 'are'} not listed.{' '}
               <button type="button" className="link" onClick={() => setShowDone(true)}>Show {hiddenDone === 1 ? 'it' : 'them'}</button></>}
+        </p>
+      )}
+      {expected && !wanted && (
+        <p className="panel__note">
+          {showOthers
+            ? <button type="button" className="link" onClick={() => setShowOthers(false)}>Show only the tags in {expected.label}</button>
+            : <>Showing the tags in {expected.label}.{hiddenOthers > 0 && <>{' '}{hiddenOthers === 1 ? 'One other tag was' : `${hiddenOthers} other tags were`} found.{' '}
+              <button type="button" className="link" onClick={() => setShowOthers(true)}>Show {hiddenOthers === 1 ? 'it' : 'them'}</button></>}</>}
+        </p>
+      )}
+      {hiddenOff > 0 && (
+        <p className="panel__note">
+          {hiddenOff === 1 ? 'One tag nearby is' : `${hiddenOff} tags nearby are`} off {hiddenOff === 1 ? 'its charger' : 'their chargers'}, so {hiddenOff === 1 ? 'it is' : 'they are'} not
+          listed: a tag takes a deployment or hands over its log only while it is charging.
         </p>
       )}
       {error && <p className="banner banner--crit" role="alert">{error}</p>}

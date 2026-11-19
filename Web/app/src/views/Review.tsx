@@ -27,7 +27,7 @@ const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
 /** Getting logs off tags or off disk, seeing at a glance whether each one is sound, and looking into the data. */
 export function Review({ logs, timezone }: { logs: LogsApi; timezone: string }) {
   const { reports, ordered, counts, failures, records, busy, saved, unsaved, saveError, onLoaded, saveLog, openFolder,
-    folder, canChooseDownloadFolder, chooseDownloadFolder, allowDownloadFolder, addDownload } = logs;
+    folder, folderTags, canChooseDownloadFolder, chooseDownloadFolder, allowDownloadFolder, addDownload } = logs;
   const hasLogs = reports.length > 0;
   const openTags = useMemo(() => openLogTags(reports), [reports]);
 
@@ -73,7 +73,7 @@ export function Review({ logs, timezone }: { logs: LogsApi; timezone: string }) 
       {saveError && <p className="banner banner--crit">Could not save: {saveError}</p>}
 
       <div className="review__intake">
-        <DownloadFromTag busy={busy} openTags={openTags} onDownloaded={addDownload} folder={folder} canChooseFolder={canChooseDownloadFolder}
+        <DownloadFromTag busy={busy} openTags={openTags} onDownloaded={addDownload} folder={folder} folderTags={folderTags} canChooseFolder={canChooseDownloadFolder}
           onChooseFolder={chooseDownloadFolder} onAllowFolder={allowDownloadFolder} />
         <ImportPanel onLoaded={(result) => void onLoaded(result)} onOpenFolder={() => void openFolder()} busy={busy} compact={hasLogs} />
       </div>

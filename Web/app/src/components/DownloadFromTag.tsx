@@ -6,9 +6,10 @@ import { parseLogAsync, releaseLogs } from '../lib/parseAsync.ts';
 import { webSerialTransport } from '../adapters/webSerial.ts';
 import { describeKnownTag, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
 import { bluetoothTransport, connectTo, errorText, transportFor, unlistedNote, unreachableMessage, useReachableTags } from '../lib/tagAccess.ts';
-import type { DownloadProgress, TagConnection, TagTransport } from '../ports/tagTransport.ts';
+import type { DownloadProgress, PickOptions, TagConnection, TagTransport } from '../ports/tagTransport.ts';
 import type { LoadedLog } from '../ports/logSource.ts';
 import type { DownloadFolderState, DownloadOutcome } from '../lib/useLogs.ts';
+import type { FolderDeployment } from '../features/folderDeployment.ts';
 
 interface Props {
   /** Open a log just downloaded, and save it into the download folder when there is one. */
@@ -18,6 +19,8 @@ interface Props {
   openTags: ReadonlySet<string>;
   /** The folder downloads are saved into; null until one is chosen. */
   folder: DownloadFolderState | null;
+  /** The deployment the folder's record describes, whose tags the TotTag Helper's list offers first. */
+  folderTags: FolderDeployment | null;
   /** False where the browser cannot be given a folder, so each card's Save button is the way to keep a log. */
   canChooseFolder: boolean;
   onChooseFolder: () => Promise<void>;
@@ -42,7 +45,7 @@ interface Downloaded {
  * The tag must be on its charger. That is not a UI nicety: `nandlog` only serves a log in
  * maintenance mode, which the firmware enters when it detects the charger.
  */
-export function DownloadFromTag({ onDownloaded, busy, openTags, folder, canChooseFolder, onChooseFolder, onAllowFolder }: Props) {
+export function DownloadFromTag({ onDownloaded, busy, openTags, folder, folderTags, canChooseFolder, onChooseFolder, onAllowFolder }: Props) {
   const { tags: knownTags, remember } = useKnownTags();
   const reachableTags = useReachableTags(knownTags);
   const unlisted = unlistedNote(knownTags, reachableTags.length);
@@ -186,7 +189,12 @@ export function DownloadFromTag({ onDownloaded, busy, openTags, folder, canChoos
     setProgress(null);
     const done: Downloaded[] = [];
     const failed: string[] = [];
-    const options = { done: { ids: openTags, label: 'Already downloaded' } };
+    // Only a tag on its charger serves its log; and a folder kept for one deployment is most likely being filled from its tags
+    const options: PickOptions = {
+      done: { ids: openTags, label: 'Already downloaded' },
+      chargingOnly: true,
+      ...(folderTags ? { expected: folderTags } : {}),
+    };
     let picked = 0;
     setWorking(true);
     try {
@@ -242,7 +250,7 @@ export function DownloadFromTag({ onDownloaded, busy, openTags, folder, canChoos
       setWorking(false);
     }
     if (picked || failed.length) report(done, failed, Math.max(picked, 1));
-  }, [downloadFrom, openTags, remember, report]);
+  }, [downloadFrom, folderTags, openTags, remember, report]);
 
   const fromKnown = useCallback(async (tag: KnownTag) => {
     setError(null);

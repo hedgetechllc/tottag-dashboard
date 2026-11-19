@@ -12,6 +12,7 @@
 package ble
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,8 +26,9 @@ import (
 	"github.com/hedgetechllc/tottag-dashboard/tottag-helper/internal/usb"
 )
 
-// ProtocolVersion changes whenever a request, reply or event changes shape. 2 added USB.
-const ProtocolVersion = 2
+// ProtocolVersion changes whenever a request, reply or event changes shape. 2 added USB. 3 added manufacturer
+// data to device events.
+const ProtocolVersion = 3
 
 // readBufferBytes is the largest value an attribute can hold.
 const readBufferBytes = 512
@@ -245,6 +247,16 @@ func (s *Session) handle(request protocol.Request) (map[string]any, error) {
 	}
 }
 
+// manufacturerData passes on what a device advertises as manufacturer-specific data, company by company, without
+// reading it: a TotTag says there whether it is on its charger, which is the dashboard's to know.
+func manufacturerData(elements []bluetooth.ManufacturerDataElement) []map[string]any {
+	out := make([]map[string]any, 0, len(elements))
+	for _, element := range elements {
+		out = append(out, map[string]any{"company": element.CompanyID, "data": hex.EncodeToString(element.Data)})
+	}
+	return out
+}
+
 func (s *Session) scanStart(prefix string) (map[string]any, error) {
 	if err := s.enable(); err != nil {
 		return nil, protocol.Errorf("bluetooth-unavailable", "%s", err)
@@ -266,7 +278,10 @@ func (s *Session) scanStart(prefix string) (map[string]any, error) {
 			s.mu.Lock()
 			s.devices[id] = result.Address
 			s.mu.Unlock()
-			s.send(map[string]any{"event": "device", "device": id, "name": name, "rssi": result.RSSI})
+			s.send(map[string]any{
+				"event": "device", "device": id, "name": name, "rssi": result.RSSI,
+				"manufacturer": manufacturerData(result.ManufacturerData()),
+			})
 		})
 		s.mu.Lock()
 		s.scanning = false

@@ -13,11 +13,17 @@
 // everything here says "not available" rather than throwing, so the page falls back to the
 // browser's own Bluetooth chooser and USB port picker.
 
+import { onChargerFromAdvertisement, type ManufacturerData } from '@tottag/schema';
+
 /** The extension's ID, fixed by the public key in its manifest. Overridable for a build keyed differently. */
 export const HELPER_EXTENSION_ID =
   (import.meta.env?.VITE_TOTTAG_HELPER_EXTENSION_ID as string | undefined) ?? 'mdcklmmdjhaedkbclflpiehpcmofhcfn';
 
-/** The protocol this page speaks: `ProtocolVersion` in the helper's internal/ble. An older helper is outdated. 2 added USB. */
+/**
+ * The oldest protocol this page works with: `ProtocolVersion` in the helper's internal/ble. An older helper is outdated.
+ * 2 added USB. 3 added manufacturer data to device events, which this page uses when it is there and does without
+ * when it is not, so a helper speaking 2 is not made to update for it.
+ */
 export const HELPER_PROTOCOL = 2;
 
 /** The newest TotTag Helper released when this page was built (vite.config.ts), or ''. */
@@ -83,6 +89,18 @@ export interface ScannedTag {
   readonly rssi: number;
   /** When it was last heard, in milliseconds since 1970. */
   readonly seenAt: number;
+  /** Whether its advertisement says it is on its charger; null when it does not say, as from a helper before protocol 3. */
+  readonly onCharger: boolean | null;
+}
+
+/** The manufacturer data a device event carries, or null from a helper too old to send it. */
+export function manufacturerFromEvent(raw: unknown): ManufacturerData[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw.flatMap((entry) => {
+    const { company, data } = (entry ?? {}) as { company?: unknown; data?: unknown };
+    if (typeof company !== 'number' || typeof data !== 'string' || !/^(?:[0-9a-f]{2})*$/i.test(data)) return [];
+    return [{ company, data: Uint8Array.from(data.match(/../g) ?? [], (byte) => Number.parseInt(byte, 16)) }];
+  });
 }
 
 export interface HelperSnapshot {
@@ -346,7 +364,10 @@ export class HelperClient {
     }
     switch (message.event) {
       case 'device':
-        this.foundTag({ id: String(message.device), name: String(message.name ?? ''), rssi: Number(message.rssi ?? 0), seenAt: Date.now() });
+        this.foundTag({
+          id: String(message.device), name: String(message.name ?? ''), rssi: Number(message.rssi ?? 0), seenAt: Date.now(),
+          onCharger: onChargerFromAdvertisement(manufacturerFromEvent(message.manufacturer)),
+        });
         return;
       case 'scanStopped':
         this.scanStopped();

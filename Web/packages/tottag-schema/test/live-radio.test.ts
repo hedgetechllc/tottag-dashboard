@@ -94,7 +94,7 @@ function stats(overrides: Partial<RadioStats>): RadioStats {
     role: 'ROLE_PARTICIPANT', scheduleSize: 3, testRunning: true, testWaiting: false, testSecondsLeft: 0,
     roundsScheduled: 0, roundsRanged: 0, rxOk: 0, rxFailed: 0,
     rxOkByAntenna: new Array(NUM_XMIT_ANTENNAS).fill(0), rxFailedByAntenna: new Array(NUM_XMIT_ANTENNAS).fill(0),
-    txLate: 0, rxArmLate: 0, isrOverBudget: 0, wakeMaxUs: 0, wakeFailures: 0, antenna: 0, antennaChanges: 0, ...overrides,
+    txLate: 0, rxArmLate: 0, isrOverBudget: 0, wakeMaxUs: 0, wakeFailures: 0, antenna: 0, antennaChanges: 0, senders: [], ...overrides,
   };
 }
 

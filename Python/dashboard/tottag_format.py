@@ -163,8 +163,9 @@ BLE_MAINTENANCE_RADIO_TEST_HEADER_LEN = 10
 RADIO_TEST_MAX_SECONDS = 3600
 EUI_LEN = 6
 NUM_XMIT_ANTENNAS = 3
-RADIO_STATS_STRUCT = struct.Struct('<BBBBHIIII3I3IHHHHHBB')
-RADIO_STATS_VERSION = 2
+RADIO_STATS_STRUCT = struct.Struct('<BBBBHIIII3I3IHHHHHBBB10B30I30I')
+RADIO_STATS_VERSION = 3
+RADIO_STATS_MAX_SENDERS = 10
 RADIO_STATS_FLAG_TEST_RUNNING = 0x01
 RADIO_STATS_FLAG_TEST_WAITING = 0x02
 SYSTEM_ID_EUI_OFFSETS = (0, 1, 2, 5, 6, 7)
@@ -201,7 +202,18 @@ def decode_radio_stats(data):
       raise ValueError(f'This device reports radio statistics in layout {version}, which this tool does not read.')
    ok_by_antenna = list(rest[:NUM_XMIT_ANTENNAS])
    failed_by_antenna = list(rest[NUM_XMIT_ANTENNAS:2 * NUM_XMIT_ANTENNAS])
-   tx_late, rx_arm_late, isr_over_budget, wake_max_us, wake_failures, antenna, antenna_changes = rest[2 * NUM_XMIT_ANTENNAS:]
+   tx_late, rx_arm_late, isr_over_budget, wake_max_us, wake_failures, antenna, antenna_changes = rest[2 * NUM_XMIT_ANTENNAS:2 * NUM_XMIT_ANTENNAS + 7]
+   # The receives again by who sent them: a count, then parallel arrays of sender, decoded and failed slots per antenna
+   sender_count, *by_sender = rest[2 * NUM_XMIT_ANTENNAS + 7:]
+   uids = by_sender[:RADIO_STATS_MAX_SENDERS]
+   ok_by_sender = by_sender[RADIO_STATS_MAX_SENDERS:RADIO_STATS_MAX_SENDERS * (1 + NUM_XMIT_ANTENNAS)]
+   failed_by_sender = by_sender[RADIO_STATS_MAX_SENDERS * (1 + NUM_XMIT_ANTENNAS):]
+   senders = [
+      {'uid': uids[row],
+       'rx_ok_by_antenna': list(ok_by_sender[row * NUM_XMIT_ANTENNAS:(row + 1) * NUM_XMIT_ANTENNAS]),
+       'rx_failed_by_antenna': list(failed_by_sender[row * NUM_XMIT_ANTENNAS:(row + 1) * NUM_XMIT_ANTENNAS])}
+      for row in range(min(sender_count, RADIO_STATS_MAX_SENDERS)) if uids[row]
+   ]
    return {
       'role': SCHEDULE_ROLES.get(role, str(role)),
       'schedule_size': schedule_size,
@@ -221,6 +233,7 @@ def decode_radio_stats(data):
       'wake_failures': wake_failures,
       'antenna': antenna,
       'antenna_changes': antenna_changes,
+      'senders': senders,
    }
 
 

@@ -29,6 +29,8 @@ test('the parity scenarios reach every verdict and every kind of reason, so the 
     /^Ranged in only/, /^Ranged in \d+% of rounds, where/, /receives failed against/, /^Antenna \d failed .* suspect\.$/,
     /^Antenna \d failed .* on the others\.$/, /^Ranged to a typical peer in only/, /^Ranged to a typical peer in \d+% of rounds, against/,
     /mm long on every link/, /mm short on every link/, /^Its distances spread/, /^The radio needed resetting/, /^Lost \d+ rounds/,
+    /^Allowing for the tags it listened to/, /^Allowing for the tags listening/,
+    /^Antenna \d: .* of its receives through it failed/, /^Antenna \d: .* of what it sent through it was not received/,
   ]) {
     assert.ok(reasons.some((reason) => pattern.test(reason)), `no scenario produces a reason matching ${pattern}`);
   }

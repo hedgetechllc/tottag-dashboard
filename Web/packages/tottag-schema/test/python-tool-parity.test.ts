@@ -253,6 +253,7 @@ test('AGREES: both tools run a live radio test with the firmware\'s commands and
     ['RADIO_STATS_FLAG_TEST_WAITING', BLE_RADIO_STATS_FLAG_TEST_WAITING],
     ['EUI_LEN', EUI_LEN],
     ['NUM_XMIT_ANTENNAS', NUM_XMIT_ANTENNAS],
+    ['RADIO_STATS_MAX_SENDERS', MAX_NUM_RANGING_DEVICES],
   ] as const) {
     assert.equal(pythonInt(FORMAT_PY, name), value, `${name} differs between the tools`);
   }

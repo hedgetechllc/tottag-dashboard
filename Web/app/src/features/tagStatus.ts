@@ -72,6 +72,22 @@ export function assessSnapshot(snapshot: TagSnapshot, firmware: string | null, n
 export const batteryLow = (mv: number | null | undefined): boolean =>
   typeof mv === 'number' && mv > 0 && mv < MIN_RECORDING_BATTERY_MV;
 
+/**
+ * Whether two readings of a tag hold the same deployment. A tag that reads back what it held before a
+ * write or a cancel did not take it, which is what a tag off its charger does: it changes its
+ * deployment only in the maintenance mode it is in while charging, and says nothing when it refuses.
+ */
+export function sameStored(a: StoredDeployment | null, b: StoredDeployment | null): boolean {
+  if (!a || !b) return a === b;
+  return a.startTime === b.startTime && a.endTime === b.endTime && a.cancelled === b.cancelled &&
+    a.useDailyTimes === b.useDailyTimes && a.dailyStartTime === b.dailyStartTime && a.dailyEndTime === b.dailyEndTime &&
+    a.devices.length === b.devices.length &&
+    a.devices.every((device, i) => device.label === b.devices[i]!.label && device.eui.join() === b.devices[i]!.eui.join());
+}
+
+/** What to tell someone whose tag kept the deployment it held. */
+export const OFF_CHARGER_HINT = 'A tag changes its deployment only while it is on its charger: put it on its charger, then try again.';
+
 export type StoredState = 'upcoming' | 'running' | 'finished' | 'cancelled';
 
 export function storedState(stored: StoredDeployment, now: number): StoredState {

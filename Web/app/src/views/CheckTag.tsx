@@ -4,7 +4,7 @@ import { webSerialTransport } from '../adapters/webSerial.ts';
 import { ConfirmButton } from '../components/ConfirmButton.tsx';
 import { LiveRanges, useLiveRanges } from '../components/LiveRanges.tsx';
 import { TagDetails } from '../components/TagFacts.tsx';
-import { assessSnapshot, mayHoldData, storedState } from '../features/tagStatus.ts';
+import { assessSnapshot, mayHoldData, OFF_CHARGER_HINT, storedState } from '../features/tagStatus.ts';
 import { describeKnownTag, useKnownTags, type KnownTag } from '../features/useKnownTags.ts';
 import { useDownloaded, useTagChecks } from '../features/useTagRecords.ts';
 import {
@@ -44,10 +44,14 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
   const helperRunning = bluetoothTransport().id === 'helper';
   const serialReason = webSerialTransport.unavailableReason();
 
-  const read = useCallback(async (connection: TagConnection) => {
+  /** Read the tag and keep what it said; returns the reading. */
+  const readCheck = useCallback(async (connection: TagConnection) => {
     const snapshot = await connection.readSnapshot();
-    checks.record(connection.identity.eui, assessSnapshot(snapshot, connection.identity.firmware, Date.now() / 1000));
+    const check = assessSnapshot(snapshot, connection.identity.firmware, Date.now() / 1000);
+    checks.record(connection.identity.eui, check);
+    return check;
   }, [checks]);
+  const read = useCallback(async (connection: TagConnection) => { await readCheck(connection); }, [readCheck]);
 
   const pickNew = useCallback(async (transport: TagTransport) => {
     setError(null);
@@ -225,8 +229,10 @@ export function CheckTag({ timezone, onAddToDeployment, inDeployment }: {
                   }
                   onConfirm={() => void run(selected!, 'Canceling…', async (connection) => {
                     await connection.cancelDeployment();
-                    await read(connection);
-                    setMessage(`${tagName(eui)}'s deployment was canceled.`);
+                    // Read back rather than trusting it: a tag off its charger refuses without saying so
+                    const after = await readCheck(connection);
+                    if (after.stored && !after.stored.cancelled) setError(`${tagName(eui)} kept its deployment. ${OFF_CHARGER_HINT}`);
+                    else setMessage(`${tagName(eui)}'s deployment was canceled.`);
                   })}
                 />
               </div>

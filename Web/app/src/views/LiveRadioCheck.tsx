@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RADIO_TEST_MAX_SECONDS, tagName } from '@tottag/schema';
 import {
-  LinkMatrix, POSITIONS_NOTE, PositionCells, PositionShortcuts, RadioCard, VERDICT_ORDER, usePositions,
+  LinkMatrix, ReceptionMatrix, POSITIONS_NOTE, PositionCells, PositionShortcuts, RadioCard, VERDICT_ORDER, usePositions,
 } from '../components/RadioResults.tsx';
 import { LiveRadioTest, type LiveDevice, type LiveDeviceStatus, type LiveTestState } from '../features/liveRadioTest.ts';
 import { formatPercent, runRadioCheck } from '../features/radioCheck.ts';
@@ -219,6 +219,7 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
                     name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
               </div>
               <LinkMatrix devices={deployment.devices} links={result.links} />
+              {result.receptions && <ReceptionMatrix devices={deployment.devices} receptions={result.receptions} />}
             </>
           )}
         </>

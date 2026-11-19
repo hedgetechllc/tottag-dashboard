@@ -14,6 +14,7 @@ import { readRecordFiles, type OpenRecord } from '../features/studyClock.ts';
 import { useDownloaded } from '../features/useTagRecords.ts';
 import type { LoadedLog, LoadFailure, LoadResult } from '../ports/logSource.ts';
 import { releaseLogs } from './parseAsync.ts';
+import { folderDeployment, type FolderDeployment } from '../features/folderDeployment.ts';
 
 export type LogsApi = ReturnType<typeof useLogs>;
 
@@ -84,10 +85,13 @@ export function useLogs() {
 
   const folderRef = useRef<FolderHandle | null>(null);
   const [folder, setFolder] = useState<DownloadFolderState | null>(null);
+  // The deployment the folder's newest record describes, whose tags the list to download from offers first
+  const [folderTags, setFolderTags] = useState<FolderDeployment | null>(null);
 
   /** Open the deployment records in the folder, which give its logs their time zone and labels. */
   const openFolderRecords = useCallback(async (handle: FolderHandle) => {
     const records = await folderRecords(handle);
+    setFolderTags(folderDeployment(records));
     if (records.length) await onLoaded({ loaded: [], failed: [], records, fromFolder: true });
   }, [onLoaded]);
 
@@ -114,6 +118,7 @@ export function useLogs() {
       if (!handle) return;
       folderRef.current = handle;
       setFolder({ name: handle.name, writable: true });
+      setFolderTags(null);
       await openFolderRecords(handle);
     } catch (caught) {
       setSaveError(caught instanceof Error ? caught.message : String(caught));
@@ -211,6 +216,6 @@ export function useLogs() {
 
   return {
     reports, ordered, counts, failures, records, busy, saved, unsaved, saveError, onLoaded, exportCsv, saveLog, openFolder, clear,
-    folder, canChooseDownloadFolder: canChooseFolder(), chooseDownloadFolder, allowDownloadFolder, addDownload,
+    folder, folderTags, canChooseDownloadFolder: canChooseFolder(), chooseDownloadFolder, allowDownloadFolder, addDownload,
   };
 }

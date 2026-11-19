@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ImportPanel } from '../components/ImportPanel.tsx';
-import { LinkMatrix, RadioCard, VERDICT_ORDER } from '../components/RadioResults.tsx';
+import { LinkMatrix, ReceptionMatrix, RadioCard, VERDICT_ORDER } from '../components/RadioResults.tsx';
 import type { DeviceReport } from '../features/deployment.ts';
 import { groupRadioDeployments, runRadioCheck } from '../features/radioCheck.ts';
 import type { LoadResult } from '../ports/logSource.ts';
@@ -111,6 +111,7 @@ function LogRadioCheck({ reports, busy, onLoaded, onOpenFolder }: Omit<Props, 'l
         {devices.map((device) => <RadioCard key={device.uid} device={device} name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
       </div>
       <LinkMatrix devices={deployment.devices} links={result.links} />
+      {result.receptions && <ReceptionMatrix devices={deployment.devices} receptions={result.receptions} />}
     </>
   );
 }

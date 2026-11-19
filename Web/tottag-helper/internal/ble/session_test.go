@@ -156,3 +156,16 @@ func TestUSBRequestsGoToTheUSBHalfWithoutStartingBluetooth(t *testing.T) {
 		t.Fatal("listing USB ports started Bluetooth")
 	}
 }
+
+func TestManufacturerDataIsPassedOnAsHexByCompany(t *testing.T) {
+	// A TotTag on its charger: company 0x02E0, role byte 13
+	raw, _ := json.Marshal(manufacturerData([]bluetooth.ManufacturerDataElement{{CompanyID: 0x02e0, Data: []byte{13}}}))
+	if string(raw) != `[{"company":736,"data":"0d"}]` {
+		t.Fatalf("got %s", raw)
+	}
+	// Nothing advertised is an empty list, not null, so the page can tell it from an older helper
+	raw, _ = json.Marshal(manufacturerData(nil))
+	if string(raw) != `[]` {
+		t.Fatalf("got %s", raw)
+	}
+}

@@ -12,7 +12,7 @@ import {
   COMPRESSED_RANGE_DATUM_LENGTH, EUI_LEN, MAX_NUM_RANGING_DEVICES, MAX_VALID_RANGE_MM, NUM_XMIT_ANTENNAS,
   RADIO_STATS_LAYOUT, RADIO_TEST_MAX_SECONDS, SCHEDULE_ROLE,
 } from './constants.ts';
-import type { PeerBin, RadioSummary } from './radioCheck.ts';
+import type { PeerBin, RadioSummary, SenderCounts } from './radioCheck.ts';
 
 /** How long each bin of a live recording covers, short so that verdicts move as the test goes. */
 export const LIVE_BIN_MS = 15_000;
@@ -82,6 +82,8 @@ export interface RadioStats {
   readonly antenna: number;
   /** Times that choice has moved since boot, saturating at 255. */
   readonly antennaChanges: number;
+  /** The receives again, split by who sent them, in the order the senders were first heard. */
+  readonly senders: readonly SenderCounts[];
 }
 
 const roleName = (value: number) =>
@@ -120,7 +122,22 @@ export function decodeRadioStats(bytes: Uint8Array): RadioStats {
     wakeFailures: view.getUint16(field('wake_failures'), true),
     antenna: view.getUint8(field('antenna')),
     antennaChanges: view.getUint8(field('antenna_changes')),
+    senders: decodeSenders(view, field),
   };
+}
+
+/** The per-sender rows of a radio statistics read: parallel arrays of sender, decoded slots and failed slots per antenna. */
+function decodeSenders(view: DataView, field: (name: string) => number): SenderCounts[] {
+  const count = Math.min(view.getUint8(field('sender_count')), MAX_NUM_RANGING_DEVICES);
+  const senders: SenderCounts[] = [];
+  for (let row = 0; row < count; row += 1) {
+    const uid = view.getUint8(field('sender_uids') + row);
+    if (!uid) continue;
+    const counts = (name: string) =>
+      Array.from({ length: NUM_XMIT_ANTENNAS }, (_, antenna) => view.getUint32(field(name) + (row * NUM_XMIT_ANTENNAS + antenna) * 4, true));
+    senders.push({ uid, rxOkByAntenna: counts('sender_rx_ok'), rxFailedByAntenna: counts('sender_rx_failed') });
+  }
+  return senders;
 }
 
 /**
@@ -186,6 +203,7 @@ export class LiveRadioRecorder {
   private bankedFailed = new Array<number>(NUM_XMIT_ANTENNAS).fill(0);
   private samples = 0;
   private truncatedNotifications = 0;
+  private bankedSenders = new Map<number, { ok: number[]; failed: number[] }>();
 
   constructor(options: LiveRadioRecorderOptions) {
     this.options = options;
@@ -229,6 +247,12 @@ export class LiveRadioRecorder {
       };
       last.rxOkByAntenna.forEach((count, antenna) => { this.bankedOk[antenna]! += count; });
       last.rxFailedByAntenna.forEach((count, antenna) => { this.bankedFailed[antenna]! += count; });
+      for (const sender of last.senders) {
+        const bank = this.bankedSenders.get(sender.uid) ?? { ok: new Array(NUM_XMIT_ANTENNAS).fill(0), failed: new Array(NUM_XMIT_ANTENNAS).fill(0) };
+        sender.rxOkByAntenna.forEach((count, antenna) => { bank.ok[antenna]! += count; });
+        sender.rxFailedByAntenna.forEach((count, antenna) => { bank.failed[antenna]! += count; });
+        this.bankedSenders.set(sender.uid, bank);
+      }
     }
 
     // Rounds since the last read, spread over the time between the two reads. The first read is only a starting
@@ -254,6 +278,18 @@ export class LiveRadioRecorder {
       const overlap = Math.min(toMs, (bin + 1) * LIVE_BIN_MS) - Math.max(fromMs, bin * LIVE_BIN_MS);
       if (overlap > 0) this.countedRounds.set(bin, (this.countedRounds.get(bin) ?? 0) + rounds * (overlap / (toMs - fromMs)));
     }
+  }
+
+  /** Every sender's receives so far, banked across restarts, by sender. */
+  private sendersSoFar(latest: readonly SenderCounts[]): SenderCounts[] {
+    const uids = new Set([...this.bankedSenders.keys(), ...latest.map((counts) => counts.uid)]);
+    return [...uids].sort((a, b) => a - b).map((uid) => {
+      const now = latest.find((counts) => counts.uid === uid);
+      const bank = this.bankedSenders.get(uid);
+      const sum = (latest: readonly number[] | undefined, banked: readonly number[] | undefined) =>
+        Array.from({ length: NUM_XMIT_ANTENNAS }, (_, antenna) => (latest?.[antenna] ?? 0) + (banked?.[antenna] ?? 0));
+      return { uid, rxOkByAntenna: sum(now?.rxOkByAntenna, bank?.ok), rxFailedByAntenna: sum(now?.rxFailedByAntenna, bank?.failed) };
+    });
   }
 
   /** The most recent counters, for showing progress before any verdict is possible. */
@@ -309,6 +345,7 @@ export class LiveRadioRecorder {
         rxArmLate: this.banked.rxArmLate + latest.rxArmLate,
         txLate: this.banked.txLate + latest.txLate,
         samples: this.samples,
+        bySender: this.sendersSoFar(latest.senders),
       } : null,
       aborts: 0,
     };

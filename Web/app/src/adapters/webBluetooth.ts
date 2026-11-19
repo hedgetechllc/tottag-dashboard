@@ -19,8 +19,8 @@
 //      `bluetooth_init()` as [uid0, uid1, uid2, 0xFE, 0xFF, uid3, uid4, uid5]. The Python tool split
 //      the BLE address instead, which is why that approach does not port.
 
-import { BLE_UUID } from '@tottag/schema';
-import type { TagConnection, TagTransport } from '../ports/tagTransport.ts';
+import { BLE_UUID, SCHEDULE_ROLE, TOTTAG_COMPANY_ID } from '@tottag/schema';
+import type { PickOptions, TagConnection, TagTransport } from '../ports/tagTransport.ts';
 import {
   GattTag, OPERATION_TIMEOUT_MS, readIdentity, withTimeout,
   type GattCharacteristic, type GattLink, type TagIdentityFacts,
@@ -156,7 +156,7 @@ export const webBluetoothTransport: TagTransport = {
     return () => { reachabilityListeners.delete(listener); };
   },
 
-  async requestDevice(onPicked?: () => void): Promise<TagConnection | null> {
+  async requestDevice(onPicked?: () => void, options?: PickOptions): Promise<TagConnection | null> {
     const api = bluetooth();
     if (!api) throw new Error(webBluetoothTransport.unavailableReason() ?? 'Bluetooth unavailable');
     try {
@@ -169,7 +169,12 @@ export const webBluetoothTransport: TagTransport = {
         // On macOS the chooser shows the name CoreBluetooth has cached for the device, which can be
         // the plain "TotTag" an earlier firmware reported, not the name it advertises now. Chrome then
         // adds an internal device ID to tell the identical names apart.
-        filters: [{ namePrefix: 'TotTag' }],
+        //
+        // Where only a tag on its charger will do, the chooser lists only those: a tag advertises the role it
+        // is in, and ROLE_ASLEEP is the one it takes on its charger (advertisement.ts).
+        filters: [options?.chargingOnly
+          ? { namePrefix: 'TotTag', manufacturerData: [{ companyIdentifier: TOTTAG_COMPANY_ID, dataPrefix: Uint8Array.of(SCHEDULE_ROLE.ROLE_ASLEEP) }] }
+          : { namePrefix: 'TotTag' }],
         optionalServices: [LIVE_STATS, MAINTENANCE, DEVICE_INFO_SERVICE],
       });
       onPicked?.();

@@ -102,6 +102,124 @@ def _solve_biases(uids, residuals):
    return {uid: matrix[i][n] / matrix[i][i] for i, uid in enumerate(uids)}
 
 
+# TELLING A TAG THAT HEARS POORLY FROM ONE THE OTHERS CANNOT HEAR ---------------------------------------------------
+#
+# A receive fails as much for a sender transmitting weakly as for a receiver hearing poorly, and every device uses the
+# same antenna at the same time, so a device with a damaged antenna raises every other device's failures on that
+# antenna too. Counted by sender, the two can be told apart: the chance that receiver r decodes sender t is modelled
+# as hears(r) x heard(t), both fitted from every pair at once by iterative proportional fitting. Only their product is
+# fixed by the data, so each is reported against the best partner. A port of separateReceptions() in the web tool's
+# radioCheck.ts, step for step, so that the two reach the same figures.
+
+def _fit_qualities(uids, cells):
+   """hears and heard for every device, from the cells of one antenna or of all of them together."""
+   hears = {uid: 1 for uid in uids}
+   heard = {uid: 1 for uid in uids}
+   as_receiver = {uid: [cell for cell in cells if cell['receiver'] == uid] for uid in uids}
+   as_sender = {uid: [cell for cell in cells if cell['sender'] == uid] for uid in uids}
+
+   def update(factors, groups, partner):
+      change = 0
+      for uid, group in groups.items():
+         expected = 0
+         for cell in group:
+            expected += cell['total'] * partner(cell)
+         if expected <= 0:
+            continue
+         decoded = 0
+         for cell in group:
+            decoded += cell['ok']
+         following = decoded / expected
+         change = max(change, abs(following - factors[uid]))
+         factors[uid] = following
+      return change
+
+   for _ in range(1000):
+      changed = update(hears, as_receiver, lambda cell: heard[cell['sender']])
+      changed += update(heard, as_sender, lambda cell: hears[cell['receiver']])
+      if changed < 1e-10:
+         break
+   samples = lambda group: sum(cell['total'] for cell in group)
+   best_hears = max([0] + [hears[uid] for uid in uids if samples(as_receiver[uid]) >= ANTENNA_MIN_SAMPLES])
+   best_heard = max([0] + [heard[uid] for uid in uids if samples(as_sender[uid]) >= ANTENNA_MIN_SAMPLES])
+   return {uid: {
+      'hears': min(1, hears[uid] * best_heard) if samples(as_receiver[uid]) >= ANTENNA_MIN_SAMPLES else None,
+      'heard': min(1, heard[uid] * best_hears) if samples(as_sender[uid]) >= ANTENNA_MIN_SAMPLES else None,
+   } for uid in uids}
+
+
+def separate_receptions(uids, receptions):
+   """How well each device hears and is heard, overall and through each antenna, with its partners allowed for."""
+   within = [r for r in receptions if r['receiver'] != r['sender'] and r['receiver'] in uids and r['sender'] in uids]
+   antennas = max([0] + [len(r['rx_ok']) for r in within])
+
+   def cells_for(antenna):
+      cells = []
+      for r in within:
+         ok = sum(r['rx_ok']) if antenna is None else (r['rx_ok'][antenna] if antenna < len(r['rx_ok']) else 0)
+         failed = sum(r['rx_failed']) if antenna is None else (r['rx_failed'][antenna] if antenna < len(r['rx_failed']) else 0)
+         cells.append({'receiver': r['receiver'], 'sender': r['sender'], 'ok': ok, 'total': ok + failed})
+      return cells
+
+   # The model holds antenna by antenna, every device being on the same one at once, but not for counts pooled across
+   # them; so a device's overall figure is the mean of its antennas', and the pooled fit stands in only where no
+   # antenna alone has enough receives to judge
+   pooled = _fit_qualities(uids, cells_for(None))
+   per_antenna = [_fit_qualities(uids, cells_for(antenna)) for antenna in range(antennas)]
+
+   def mean(values, fallback):
+      judged = [value for value in values if value is not None]
+      return sum(judged) / len(judged) if judged else fallback
+
+   qualities = {}
+   for uid in uids:
+      hears_by_antenna = [fit[uid]['hears'] for fit in per_antenna]
+      heard_by_antenna = [fit[uid]['heard'] for fit in per_antenna]
+      qualities[uid] = {
+         'hears': mean(hears_by_antenna, pooled[uid]['hears']), 'heard': mean(heard_by_antenna, pooled[uid]['heard']),
+         'hears_by_antenna': hears_by_antenna, 'heard_by_antenna': heard_by_antenna,
+      }
+   return qualities
+
+
+def _judge_quality(quality, best_hears, best_heard):
+   """What a device's own receiving and transmitting say about it, against the best device's."""
+   fails, checks = [], []
+
+   def judge(excess, message, fail_message, fail_at, check_at):
+      if excess > fail_at:
+         fails.append(f'{message} {fail_message}')
+      elif excess > check_at:
+         checks.append(message)
+
+   if quality['hears'] is not None:
+      judge(best_hears - quality['hears'],
+            f"Allowing for the tags it listened to, {_percent(1 - quality['hears'])} of its receives failed, against {_percent(1 - best_hears)} for the tag that hears best.",
+            'A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.',
+            RX_FAILURE_FAIL_EXCESS, RX_FAILURE_CHECK_EXCESS)
+   if quality['heard'] is not None:
+      judge(best_heard - quality['heard'],
+            f"Allowing for the tags listening, {_percent(1 - quality['heard'])} of what it sent was not received, against {_percent(1 - best_heard)} for the tag heard best.",
+            'A weak transmitter, or a damaged antenna or connection.',
+            RX_FAILURE_FAIL_EXCESS, RX_FAILURE_CHECK_EXCESS)
+   # One antenna worse than its others, receiving or sending: the same damage shows both ways
+   for by_antenna, doing in ((quality['hears_by_antenna'], 'of its receives through it failed'),
+                             (quality['heard_by_antenna'], 'of what it sent through it was not received')):
+      misses = [(antenna, 1 - share) for antenna, share in enumerate(by_antenna) if share is not None]
+      if len(misses) < 2:
+         continue
+      worst = best = misses[0]
+      for entry in misses[1:]:
+         if entry[1] > worst[1]: worst = entry
+         if entry[1] < best[1]: best = entry
+      others = ' and '.join(_percent(miss) for antenna, miss in misses if antenna != worst[0])
+      judge(worst[1] - best[1],
+            f'Antenna {worst[0] + 1}: allowing for the other tags, {_percent(worst[1])} {doing}, against {others} through the others.',
+            'That antenna, its switch, or its connection is suspect.',
+            ANTENNA_FAIL_SPREAD, ANTENNA_CHECK_SPREAD)
+   return fails, checks
+
+
 def analyse_radio(devices, positions=None):
    """Judge every device against the others.
 
@@ -197,6 +315,16 @@ def analyse_radio(devices, positions=None):
       values = [f[key] for other, f in figures.items() if other != uid and f['loaded'] and f[key] is not None]
       return _median(values) if values else None
 
+   # Receives by sender, where every device loaded reports them: then each device's own receiving and transmitting can
+   # be told from its partners', and those replace the raw receive failures, which a bad partner inflates
+   receptions = None
+   if len(loaded) >= 2 and all((d['summary']['diagnostics'] or {}).get('by_sender') is not None for d in loaded):
+      receptions = [{'receiver': d['uid'], 'sender': counts['uid'], 'rx_ok': counts['rx_ok_by_antenna'], 'rx_failed': counts['rx_failed_by_antenna']}
+                    for d in loaded for counts in d['summary']['diagnostics']['by_sender']]
+   qualities = separate_receptions([d['uid'] for d in loaded], receptions) if receptions else None
+   best_of = lambda key: max([0] + [q[key] for q in (qualities or {}).values() if q[key] is not None])
+   best_hears, best_heard = best_of('hears'), best_of('heard')
+
    results = []
    for device in devices:
       f = figures[device['uid']]
@@ -216,8 +344,16 @@ def analyse_radio(devices, positions=None):
          elif f['participation'] < PARTICIPATION_CHECK:
             checks.append(f"Ranged in {_percent(f['participation'])} of rounds, where a healthy network manages about 99%.")
 
+      # Judged by its factors where it has any; a device too little heard, or hearing too little, falls back to its raw counts
+      separated = qualities.get(device['uid']) if qualities else None
+      quality = separated if separated and (separated['hears'] is not None or separated['heard'] is not None) else None
+      if quality:
+         judged_fails, judged_checks = _judge_quality(quality, best_hears, best_heard)
+         fails.extend(judged_fails)
+         checks.extend(judged_checks)
+
       rx_others = others_median(device['uid'], 'rx_failure_rate')
-      if f['rx_failure_rate'] is not None:
+      if not quality and f['rx_failure_rate'] is not None:
          excess = f['rx_failure_rate'] - (rx_others if rx_others is not None else 0)
          versus = f' against {_percent(rx_others)} for the other tags' if rx_others is not None else ''
          if excess > RX_FAILURE_FAIL_EXCESS:
@@ -226,7 +362,7 @@ def analyse_radio(devices, positions=None):
             checks.append(f"{_percent(f['rx_failure_rate'])} of its ranging receives failed{versus}.")
 
       rates = [(antenna, rate) for antenna, rate in enumerate(f['antenna_failure_rates']) if rate is not None]
-      if len(rates) >= 2:
+      if not quality and len(rates) >= 2:
          worst, best = rates[0], rates[0]
          for entry in rates[1:]:
             if entry[1] > worst[1]: worst = entry
@@ -273,10 +409,11 @@ def analyse_radio(devices, positions=None):
          'participation': f['participation'], 'rx_failure_rate': f['rx_failure_rate'], 'antenna_failure_rates': f['antenna_failure_rates'],
          'link_coverage': f['link_coverage'], 'bias_mm': bias_mm, 'noise_mm': f['noise_mm'], 'diagnostics': diagnostics,
          'aborts': device['summary']['aborts'],
+         **({'quality': quality} if quality else {}),
       })
 
    return {'window_start_ms': None if start is None else start * bin_ms, 'window_end_ms': None if end is None else end * bin_ms,
-           'devices': results, 'links': links, 'notes': notes}
+           'devices': results, 'links': links, 'notes': notes, **({'receptions': receptions} if receptions else {})}
 
 
 def _millimetre(value):
@@ -315,6 +452,7 @@ class LiveRadioRecorder:
       self.banked = {'rx_ok': 0, 'rx_failed': 0, 'wake_failures': 0, 'rx_arm_late': 0, 'tx_late': 0}
       self.banked_ok = [0] * tottag_format.NUM_XMIT_ANTENNAS
       self.banked_failed = [0] * tottag_format.NUM_XMIT_ANTENNAS
+      self.banked_senders = {}
       self.samples = 0
       self.truncated = 0
 
@@ -348,6 +486,11 @@ class LiveRadioRecorder:
          for antenna in range(tottag_format.NUM_XMIT_ANTENNAS):
             self.banked_ok[antenna] += last['rx_ok_by_antenna'][antenna]
             self.banked_failed[antenna] += last['rx_failed_by_antenna'][antenna]
+         for sender in last['senders']:
+            bank = self.banked_senders.setdefault(sender['uid'], {'ok': [0] * tottag_format.NUM_XMIT_ANTENNAS, 'failed': [0] * tottag_format.NUM_XMIT_ANTENNAS})
+            for antenna in range(tottag_format.NUM_XMIT_ANTENNAS):
+               bank['ok'][antenna] += sender['rx_ok_by_antenna'][antenna]
+               bank['failed'][antenna] += sender['rx_failed_by_antenna'][antenna]
       # Rounds since the last read, spread over the time between the two reads
       if self.previous:
          rounds = stats['rounds_ranged'] - (last['rounds_ranged'] if not restarted else 0)
@@ -374,6 +517,17 @@ class LiveRadioRecorder:
    @property
    def latest_stats(self):
       return self.previous[1] if self.previous else None
+
+   def _senders_so_far(self, latest):
+      """Every sender's receives so far, banked across restarts, by sender."""
+      uids = sorted(set(self.banked_senders) | {sender['uid'] for sender in latest})
+      senders = []
+      for uid in uids:
+         now = next((sender for sender in latest if sender['uid'] == uid), None)
+         bank = self.banked_senders.get(uid)
+         add = lambda key, banked: [(now[key][a] if now else 0) + (bank[banked][a] if bank else 0) for a in range(tottag_format.NUM_XMIT_ANTENNAS)]
+         senders.append({'uid': uid, 'rx_ok_by_antenna': add('rx_ok_by_antenna', 'ok'), 'rx_failed_by_antenna': add('rx_failed_by_antenna', 'failed')})
+      return senders
 
    def summary(self):
       counted = self.samples > 0
@@ -407,6 +561,7 @@ class LiveRadioRecorder:
             'rx_arm_late': self.banked['rx_arm_late'] + latest['rx_arm_late'],
             'tx_late': self.banked['tx_late'] + latest['tx_late'],
             'samples': self.samples,
+            'by_sender': self._senders_so_far(latest['senders']),
          }
       return {
          'experiment_start_time': self.start_time,

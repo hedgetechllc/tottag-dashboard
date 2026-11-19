@@ -4,7 +4,7 @@
 // deployment's logs say nothing about where the tags were.
 
 import { useEffect, useMemo, useState } from 'react';
-import type { RadioCheckDevice, RadioCheckLink, RadioVerdict } from '@tottag/schema';
+import type { RadioCheckDevice, RadioCheckLink, RadioVerdict, Reception } from '@tottag/schema';
 import { Stat } from './Stat.tsx';
 import { circlePositions, formatMm, formatPercent, linePositions, type Positions, type RadioDevice } from '../features/radioCheck.ts';
 
@@ -105,6 +105,11 @@ export function PositionShortcuts({ uids, positions }: { uids: readonly number[]
 /** One tag's verdict. Provisional while a live test is still running, when the verdict can still change. */
 export function RadioCard({ device, name, provisional = false }: { device: RadioCheckDevice; name: string; provisional?: boolean }) {
   const antennas = device.antennaFailureRates.map((rate, i) => `${i + 1}: ${formatPercent(rate)}`).join('  ');
+  // With receives counted by sender, its own receiving and sending, its partners allowed for, stand in for the raw
+  // failures, which a bad partner inflates
+  const quality = device.quality;
+  const missed = (share: number | null) => (share === null ? null : 1 - share);
+  const byAntenna = (shares: ReadonlyArray<number | null>) => shares.map((share, i) => `${i + 1}: ${formatPercent(missed(share))}`).join('  ');
   const verdict = `${VERDICT_LABEL[device.verdict]}${provisional && device.verdict !== 'missing' ? ' so far' : ''}`;
   return (
     <article className={`card card--${VERDICT_CLASS[device.verdict]}${provisional ? ' card--provisional' : ''}`}>
@@ -118,8 +123,19 @@ export function RadioCard({ device, name, provisional = false }: { device: Radio
       {device.verdict !== 'missing' && (
         <dl className="stats">
           <Stat label="Rounds ranged" value={formatPercent(device.participation)} />
-          <Stat label="Receives failed" value={formatPercent(device.rxFailureRate)} />
-          <Stat label="Failed by antenna" value={antennas || '—'} />
+          {quality ? (
+            <>
+              <Stat label="Fails to hear" value={formatPercent(missed(quality.hears))} hint="of what the best-heard tag sends" />
+              <Stat label="Goes unheard" value={formatPercent(missed(quality.heard))} hint="by the tag that hears best" />
+              <Stat label="Fails to hear, by antenna" value={byAntenna(quality.hearsByAntenna) || '—'} />
+              <Stat label="Goes unheard, by antenna" value={byAntenna(quality.heardByAntenna) || '—'} />
+            </>
+          ) : (
+            <>
+              <Stat label="Receives failed" value={formatPercent(device.rxFailureRate)} />
+              <Stat label="Failed by antenna" value={antennas || '—'} />
+            </>
+          )}
           <Stat label="Typical link" value={formatPercent(device.linkCoverage)} hint="of rounds with a range to a given peer" />
           <Stat label="Distance offset" value={device.biasMm === null ? '—' : `${device.biasMm > 0 ? '+' : ''}${Math.round(device.biasMm)} mm`} />
           <Stat label="Distance spread" value={formatMm(device.noiseMm)} />
@@ -135,6 +151,57 @@ export function RadioCard({ device, name, provisional = false }: { device: Radio
         </ul>
       )}
     </article>
+  );
+}
+
+/**
+ * Every tag's receives from every other, read along a row: how often that tag decoded what the column's sent. A row
+ * low across the board is a tag that hears poorly, or one with something transmitting near it; a column low across
+ * the board is a tag the others cannot hear.
+ */
+export function ReceptionMatrix({ devices, receptions }: { devices: readonly RadioDevice[]; receptions: readonly Reception[] }) {
+  if (devices.length < 2) return null;
+  const sum = (values: readonly number[]) => values.reduce((a, b) => a + b, 0);
+  return (
+    <section className="panel">
+      <h2 className="panel__title">Receives</h2>
+      <p className="panel__note">
+        How often the tag in each row decoded what the tag in each column sent. A row low across the board is a tag that
+        hears poorly, or one near something else transmitting; a column low across the board is a tag the others cannot
+        hear. Hover a cell for each antenna.
+      </p>
+      <div className="matrix__scroll">
+        <table className="matrix">
+          <thead>
+            <tr><th />{devices.map((device) => <th key={device.uid} scope="col">{device.label}</th>)}</tr>
+          </thead>
+          <tbody>
+            {devices.map((row) => (
+              <tr key={row.uid}>
+                <th scope="row">{row.label}</th>
+                {devices.map((column) => {
+                  if (row.uid === column.uid) return <td key={column.uid} className="matrix__self" />;
+                  const counts = receptions.find((r) => r.receiver === row.uid && r.sender === column.uid);
+                  const total = counts ? sum(counts.rxOk) + sum(counts.rxFailed) : 0;
+                  if (!counts || !total) return <td key={column.uid} className="matrix__cell" title={`${row.label} ← ${column.label}: nothing received`}>—</td>;
+                  const share = sum(counts.rxOk) / total;
+                  const band = share >= 0.95 ? 'good' : share >= 0.85 ? 'fair' : 'poor';
+                  const perAntenna = counts.rxOk.map((ok, antenna) => {
+                    const all = ok + (counts.rxFailed[antenna] ?? 0);
+                    return `antenna ${antenna + 1}: ${all ? formatPercent(ok / all) : '—'}`;
+                  }).join(', ');
+                  return (
+                    <td key={column.uid} className={`matrix__cell matrix__cell--${band}`} title={`${row.label} ← ${column.label}: ${perAntenna}`}>
+                      {formatPercent(share)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

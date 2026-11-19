@@ -103,7 +103,7 @@
     "RADIO_TEST_MAX_SECONDS": 3600,
     "RADIO_TEST_LIST_WAIT_S": 120,
     "NUM_XMIT_ANTENNAS": 3,
-    "BLE_RADIO_STATS_VERSION": 2,
+    "BLE_RADIO_STATS_VERSION": 3,
     "BLE_RADIO_STATS_FLAG_TEST_RUNNING": 1,
     "BLE_RADIO_STATS_FLAG_TEST_WAITING": 2,
     "BLE_MAINTENANCE_MAX_SEQS_PER_WRITE": 60
@@ -1380,9 +1380,49 @@
           "dimensions": [],
           "size": 1,
           "offset": 57
+        },
+        {
+          "name": "sender_count",
+          "cType": "uint8_t",
+          "elementSize": 1,
+          "dimensions": [],
+          "size": 1,
+          "offset": 58
+        },
+        {
+          "name": "sender_uids",
+          "cType": "uint8_t",
+          "elementSize": 1,
+          "dimensions": [
+            10
+          ],
+          "size": 10,
+          "offset": 59
+        },
+        {
+          "name": "sender_rx_ok",
+          "cType": "uint32_t",
+          "elementSize": 4,
+          "dimensions": [
+            10,
+            3
+          ],
+          "size": 120,
+          "offset": 69
+        },
+        {
+          "name": "sender_rx_failed",
+          "cType": "uint32_t",
+          "elementSize": 4,
+          "dimensions": [
+            10,
+            3
+          ],
+          "size": 120,
+          "offset": 189
         }
       ],
-      "size": 58
+      "size": 309
     },
     "nandlog_wire_page_t": {
       "fields": [

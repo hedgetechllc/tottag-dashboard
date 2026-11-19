@@ -7,7 +7,7 @@
 //
 // The live scenario is raw Bluetooth payloads, so it also holds the two sides' decoders to each other.
 
-import { BLE_RADIO_STATS_FLAG_TEST_RUNNING, BLE_RADIO_STATS_VERSION, RADIO_STATS_LAYOUT, SCHEDULE_ROLE } from '../src/constants.ts';
+import { BLE_RADIO_STATS_FLAG_TEST_RUNNING, BLE_RADIO_STATS_VERSION, MAX_NUM_RANGING_DEVICES, RADIO_STATS_LAYOUT, SCHEDULE_ROLE } from '../src/constants.ts';
 import {
   LiveRadioRecorder, decodeRadioStats, decodeRangeResults, encodeRadioTestStartCommand, encodeRadioTestStopCommand,
 } from '../src/liveRadio.ts';
@@ -223,7 +223,8 @@ type LiveEvent = readonly [ms: number, kind: 'ranges' | 'stats', payload: string
  * Four devices four and a half minutes into a test: ranges every round with some notifications dropped, counters
  * read every five seconds, one device restarting mid-test, one whose notifications reach the host in bunches of
  * seven rounds across bin edges, one notification cut short by a small Bluetooth packet, and one range past the
- * valid limit.
+ * valid limit. Receives are counted by sender, and Blue's second antenna is damaged, so it both hears and is heard
+ * poorly through it, and its partners' raw failures on that antenna rise with it.
  */
 function buildLiveScenario(random: () => number) {
   const devices = [{ uid: 0x02, label: 'Red' }, { uid: 0x0b, label: 'Green' }, { uid: 0x3e, label: 'Blue' }, { uid: 0x4a, label: 'Gold' }];
@@ -235,18 +236,22 @@ function buildLiveScenario(random: () => number) {
     const events: LiveEvent[] = [];
     const deafness = device.uid === 0x3e ? 0.25 : 0.03;
     let roundsRanged = 0;
-    let rxOk = [0, 0, 0];
-    let rxFailed = [0, 0, 0];
+    const senders = devices.filter((peer) => peer.uid !== device.uid).map((peer) => peer.uid);
+    let fromOk = new Map(senders.map((uid) => [uid, [0, 0, 0]]));
+    let fromFailed = new Map(senders.map((uid) => [uid, [0, 0, 0]]));
     let restarted = false;
     for (let round = 0; round < roundsTotal; round += 1) {
       const ms = startMs + 3_000 + round * 500 + Math.floor(random() * 40);
       if (device.uid === 0x4a && round >= 260 && round < 270) continue;   // restarting: no rounds, no reads
       const heard = devices.filter((peer) => peer.uid !== device.uid && random() > deafness);
+      // Two tries through each antenna from each sender, but none counted from Gold while it is restarting
       for (let antenna = 0; antenna < 3; antenna += 1) {
-        const tries = 2;
-        const failRate = device.uid === 0x3e && antenna === 1 ? 0.45 : deafness / 2;
-        for (let t = 0; t < tries; t += 1) {
-          if (random() < failRate) rxFailed[antenna]! += 1; else rxOk[antenna]! += 1;
+        for (const sender of senders) {
+          if (sender === 0x4a && round >= 260 && round < 270) continue;
+          const failRate = 0.01 + (antenna === 1 && device.uid === 0x3e ? 0.45 : 0) + (antenna === 1 && sender === 0x3e ? 0.35 : 0);
+          for (let t = 0; t < 2; t += 1) {
+            if (random() < failRate) fromFailed.get(sender)![antenna]! += 1; else fromOk.get(sender)![antenna]! += 1;
+          }
         }
       }
       if (heard.length) {
@@ -272,9 +277,13 @@ function buildLiveScenario(random: () => number) {
           // Booted back into the test: everything from zero
           restarted = true;
           roundsRanged = 3;
-          rxOk = [6, 6, 5];
-          rxFailed = [0, 0, 1];
+          fromOk = new Map(senders.map((uid) => [uid, [2, 2, 1]]));
+          fromFailed = new Map(senders.map((uid) => [uid, [0, 0, uid === 0x3e ? 1 : 0]]));
         }
+        const perAntenna = (counts: Map<number, number[]>) => [0, 1, 2].map((antenna) => [...counts.values()].reduce((sum, c) => sum + c[antenna]!, 0));
+        const rxOk = perAntenna(fromOk);
+        const rxFailed = perAntenna(fromFailed);
+        const padded = (values: number[], length: number) => [...values, ...new Array(length - values.length).fill(0)];
         events.push([ms + 120, 'stats', hex(statsPayload({
           version: BLE_RADIO_STATS_VERSION, role: index === 0 ? SCHEDULE_ROLE.ROLE_MASTER : SCHEDULE_ROLE.ROLE_PARTICIPANT,
           schedule_size: devices.length, flags: BLE_RADIO_STATS_FLAG_TEST_RUNNING, test_seconds_left: 600 - Math.floor(round / 2),
@@ -282,6 +291,9 @@ function buildLiveScenario(random: () => number) {
           rx_ok: rxOk.reduce((s, v) => s + v, 0), rx_failed: rxFailed.reduce((s, v) => s + v, 0),
           rx_ok_by_antenna: rxOk, rx_failed_by_antenna: rxFailed,
           tx_late: 0, rx_arm_late: index === 2 ? 4 : 0, isr_over_budget: 0, wake_max_us: 1900 + index * 10, wake_failures: index === 3 ? 1 : 0,
+          sender_count: senders.length, sender_uids: padded(senders, MAX_NUM_RANGING_DEVICES),
+          sender_rx_ok: padded(senders.flatMap((uid) => fromOk.get(uid)!), MAX_NUM_RANGING_DEVICES * 3),
+          sender_rx_failed: padded(senders.flatMap((uid) => fromFailed.get(uid)!), MAX_NUM_RANGING_DEVICES * 3),
         }))]);
       }
     }

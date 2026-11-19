@@ -337,8 +337,8 @@ export const STRUCTS = [
   {
     name: 'ble_radio_stats_t',
     file: 'tasks/bluetooth/live_stats_functionality.h',
-    note: 'Value of BLE_LIVE_STATS_RADIO_CHAR: the device\'s radio counters since it booted, read live by a client instead of logged, with its role, schedule size and any radio test\'s state. Versioned by its first byte.',
-    expectedSize: 58,
+    note: 'Value of BLE_LIVE_STATS_RADIO_CHAR: the device\'s radio counters since it booted, read live by a client instead of logged, with its role, schedule size and any radio test\'s state, and its receive counters again split by sender: the low byte of each sender\'s EUI with its decoded and failed ranging slots per antenna, which is what tells a sender that transmits weakly from a receiver that hears poorly. Versioned by its first byte.',
+    expectedSize: 309,
   },
   {
     name: 'nandlog_wire_page_t',

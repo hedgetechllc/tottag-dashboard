@@ -36,7 +36,7 @@ open: connections, subscriptions and open ports outlive the request that made th
 
 | Event | |
 | --- | --- |
-| `device` | A scan heard a device: its ID, name and signal strength. |
+| `device` | A scan heard a device: its ID, name, signal strength, and manufacturer data as `{company, data}` with `data` in hex. |
 | `notification` | A subscribed characteristic's new value. |
 | `disconnected` | A connection dropped. |
 | `scanStopped` | The scan ended. |
