@@ -60,7 +60,8 @@ function LogRadioCheck({ reports, busy, onLoaded, onOpenFolder }: Omit<Props, 'l
           </p>
           <ol className="steps">
             <li>Set up a deployment with the tags you want to check, starting now.</li>
-            <li>Put them where they can all see each other, at least half a meter apart, and leave them for 10 minutes.</li>
+            <li>Put them where they can all see each other, every tag at least 2 feet (60 cm) from every other, and leave them for
+              10 minutes. Include at least two tags known to be good.</li>
             <li>Download every tag's log, then open the logs here or on the Download &amp; review page.</li>
           </ol>
         </section>
@@ -108,7 +109,8 @@ function LogRadioCheck({ reports, busy, onLoaded, onOpenFolder }: Omit<Props, 'l
       {deployment.unmatched.map((note) => <p key={note} className="banner banner--warn">{note}</p>)}
 
       <div className="cards">
-        {devices.map((device) => <RadioCard key={device.uid} device={device} name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
+        {devices.map((device) => <RadioCard key={device.uid} device={device} referenced={result.references?.length !== 0}
+          name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
       </div>
       <LinkMatrix devices={deployment.devices} links={result.links} />
       {result.receptions && <ReceptionMatrix devices={deployment.devices} receptions={result.receptions} />}

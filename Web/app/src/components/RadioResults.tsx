@@ -103,7 +103,12 @@ export function PositionShortcuts({ uids, positions }: { uids: readonly number[]
 }
 
 /** One tag's verdict. Provisional while a live test is still running, when the verdict can still change. */
-export function RadioCard({ device, name, provisional = false }: { device: RadioCheckDevice; name: string; provisional?: boolean }) {
+export function RadioCard({ device, name, provisional = false, referenced = true }: {
+  device: RadioCheckDevice; name: string; provisional?: boolean;
+  /** Whether any tag was shown healthy to measure this one against, rather than all the others. */
+  referenced?: boolean;
+}) {
+  const partners = referenced ? 'the healthy tags' : 'the other tags';
   const antennas = device.antennaFailureRates.map((rate, i) => `${i + 1}: ${formatPercent(rate)}`).join('  ');
   // With receives counted by sender, its own receiving and sending, its partners allowed for, stand in for the raw
   // failures, which a bad partner inflates
@@ -125,8 +130,8 @@ export function RadioCard({ device, name, provisional = false }: { device: Radio
           <Stat label="Rounds ranged" value={formatPercent(device.participation)} />
           {quality ? (
             <>
-              <Stat label="Fails to hear" value={formatPercent(missed(quality.hears))} hint="of what the healthy tags sent" />
-              <Stat label="Goes unheard" value={formatPercent(missed(quality.heard))} hint="by the healthy tags" />
+              <Stat label="Fails to hear" value={formatPercent(missed(quality.hears))} hint={`of what ${partners} sent`} />
+              <Stat label="Goes unheard" value={formatPercent(missed(quality.heard))} hint={`by ${partners}`} />
               <Stat label="Fails to hear, by antenna" value={byAntenna(quality.hearsByAntenna) || '—'} />
               <Stat label="Goes unheard, by antenna" value={byAntenna(quality.heardByAntenna) || '—'} />
             </>

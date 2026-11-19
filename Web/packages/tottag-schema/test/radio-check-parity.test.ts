@@ -31,11 +31,16 @@ test('the parity scenarios reach every verdict and every kind of reason, so the 
     /mm long on every link/, /mm short on every link/, /^Its distances spread/, /^The radio needed resetting/, /^Lost \d+ rounds/,
     /^\d+% of its receives from the healthy tags failed, against/, /^The healthy tags failed to receive \d+% of what it sent, against/,
     /^Antennas? [\d, and]+ failed .* of its receives from the healthy tags/, /^The healthy tags failed to receive .* of what it sent through antennas? /,
+    /^\d+% of its receives failed\./, /^The other tags failed to receive \d+% of what it sent\./,
+    /^Antennas? [\d, and]+ failed .* of its receives, against/, /^The other tags failed to receive .* of what it sent through antennas? /,
   ]) {
     assert.ok(reasons.some((reason) => pattern.test(reason)), `no scenario produces a reason matching ${pattern}`);
   }
   const notes = fixture.analysis.flatMap((scenario) => scenario.expected.notes);
-  for (const pattern of [/no log loaded/, /less than a minute/, /fewer than three tags/, /do not let each tag's distance offset/, /^No positions entered/]) {
+  for (const pattern of [
+    /no log loaded/, /less than a minute/, /fewer than three tags/, /do not let each tag's distance offset/, /^No positions entered/,
+    /^No two tags decoded/, / measured about \d+ cm apart\. Place every tag/, /^\d+ pairs of tags measured closer than 2 feet/,
+  ]) {
     assert.ok(notes.some((note) => pattern.test(note)), `no scenario produces a note matching ${pattern}`);
   }
   assert.ok(fixture.live.expected.summaries.some((summary) => summary.truncated > 0), 'the live scenario has no cut-short notification');

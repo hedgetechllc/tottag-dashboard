@@ -25,6 +25,8 @@ class RadioWording(unittest.TestCase):
 
    def test_distances_are_given_in_inches(self):
       self.assertEqual(tottag.radio_wording('Reads about 179 mm long on every link.'), 'Reads about 7.0 in long on every link.')
+      self.assertEqual(tottag.radio_wording('A and B measured about 30 cm apart. Place every tag at least 2 feet (60 cm) from every other.'),
+                       'A and B measured about 12 in apart. Place every tag at least 2 feet (60 cm) from every other.')
 
 
 if __name__ == '__main__':

@@ -53,6 +53,10 @@ interface DeviceSpec {
   readonly rxArmLate?: number;
   /** Explicit rows per minute, for rounding at exact halves. */
   readonly rows?: number;
+  /** Share decoded through each antenna, for counts by sender: what it receives is its hearing times the sender's sending. */
+  readonly hearing?: readonly number[];
+  /** Share of what it sends through each antenna that is decoded; its hearing where not given. */
+  readonly sending?: readonly number[];
 }
 
 interface Scenario {
@@ -60,6 +64,8 @@ interface Scenario {
   readonly minutes: number;
   readonly devices: readonly DeviceSpec[];
   readonly positions?: ReadonlyArray<readonly [number, number, number]>;
+  /** Its own random numbers, so adding it leaves the other scenarios as they were. */
+  readonly seed?: number;
 }
 
 function buildSummaries(scenario: Scenario, random: () => number) {
@@ -92,6 +98,15 @@ function buildSummaries(scenario: Scenario, random: () => number) {
       };
     });
 
+    // Two tries through each antenna from each sender a round, where receives are counted by sender
+    const tries = minutes.length * ROUNDS_PER_MINUTE * 2;
+    const bySender = spec.hearing && firstMs !== null ? scenario.devices.filter((peer) => peer.uid !== spec.uid && peer.hearing).map((peer) => {
+      const rxOkByAntenna = spec.hearing!.map((share, a) => Math.round(tries * share * (peer.sending ?? peer.hearing!)[a]! * jitter(0.01)));
+      return { uid: peer.uid, rxOkByAntenna, rxFailedByAntenna: rxOkByAntenna.map((ok) => tries - ok) };
+    }) : undefined;
+    const summed = (pick: (counts: NonNullable<typeof bySender>[number]) => readonly number[]) =>
+      [0, 1, 2].map((a) => bySender!.reduce((sum, counts) => sum + pick(counts)[a]!, 0));
+
     const received = minutes.length * ROUNDS_PER_MINUTE * 6;
     const failureRate = spec.rxFailureRate ?? 0.04 + 0.02 * random();
     const rxFailed = Math.round(received * failureRate);
@@ -106,7 +121,15 @@ function buildSummaries(scenario: Scenario, random: () => number) {
       binMs: LOG_BIN_MS,
       rowsByBin: firstMs === null ? [] : rowsByBin,
       peers: firstMs === null ? [] : peers,
-      diagnostics: firstMs === null ? null : {
+      diagnostics: firstMs === null ? null : bySender ? {
+        rxOk: summed((c) => c.rxOkByAntenna).reduce((a, b) => a + b, 0),
+        rxFailed: summed((c) => c.rxFailedByAntenna).reduce((a, b) => a + b, 0),
+        rxOkByAntenna: summed((c) => c.rxOkByAntenna),
+        rxFailedByAntenna: summed((c) => c.rxFailedByAntenna),
+        wakeFailures: 0, irqStuck: 0, rxArmLate: 0, txLate: 0,
+        samples: minutes.length,
+        bySender,
+      } : {
         rxOk: received - rxFailed,
         rxFailed,
         rxOkByAntenna: antennas ? antennas.map((rate, i) => (spec.antennaSamples?.[i] ?? perAntenna) - Math.round((spec.antennaSamples?.[i] ?? perAntenna) * rate)) : [],
@@ -188,6 +211,31 @@ const SCENARIOS: readonly Scenario[] = [
       { uid: 0x33, label: 'Healthy', rows: 119 },
       { uid: 0x34, label: 'Two and a half', rows: 3 },
     ],
+  },
+  {
+    // Damaged on different antennas, so no pair decodes the other 95% both ways: none is a yardstick
+    name: 'four flagged tags pressed together, none of them healthy',
+    minutes: 5,
+    seed: 0x4e639c,
+    devices: [
+      { uid: 0x4e, label: '4E', hearing: [0.48, 0.89, 0.5], sending: [0.72, 0.54, 0.97] },
+      { uid: 0x63, label: '63', hearing: [0.7, 0.51, 0.99], sending: [0.49, 0.89, 0.49] },
+      { uid: 0x9c, label: '9C', hearing: [1, 0.75, 0.43], sending: [0.6, 0.7, 0.55] },
+      { uid: 0xc6, label: 'C6', hearing: [0.97, 0.98, 0.96], sending: [0.92, 0.9, 0.94] },
+    ],
+    positions: circle([0x4e, 0x63, 0x9c, 0xc6], 0.15),
+  },
+  {
+    name: 'a healthy pair among flagged tags, the pair too close together',
+    minutes: 5,
+    seed: 0x143ec6,
+    devices: [
+      { uid: 0x14, label: 'Good 1', hearing: [1, 1, 1] },
+      { uid: 0x3e, label: 'Good 2', hearing: [0.99, 1, 1] },
+      { uid: 0x63, label: '63', hearing: [0.7, 0.51, 0.99], sending: [0.49, 0.89, 0.49] },
+      { uid: 0xc6, label: 'C6', hearing: [0.97, 0.98, 0.96], sending: [0.92, 0.9, 0.94] },
+    ],
+    positions: [[0x14, 0, 0], [0x3e, 0.3, 0], [0x63, 1.5, 0], [0xc6, 0.75, 1.3]],
   },
 ];
 
@@ -335,7 +383,7 @@ function plain(result: RadioCheckResult) {
 export function buildRadioParityFixture() {
   const random = generator(0x7077a6);
   const analysis = SCENARIOS.map((scenario) => {
-    const devices = buildSummaries(scenario, random);
+    const devices = buildSummaries(scenario, scenario.seed === undefined ? random : generator(scenario.seed));
     const positions = scenario.positions ?? [];
     const result = analyseRadio({ devices, positions: new Map(positions.map(([uid, x, y]) => [uid, { x, y }])) });
     return { name: scenario.name, devices, positions, expected: plain(result) };

@@ -38,6 +38,8 @@ RX_FAILURE_FAIL_EXCESS = 0.2
 ANTENNA_CHECK_SPREAD = 0.1
 ANTENNA_FAIL_SPREAD = 0.25
 ANTENNA_MIN_SAMPLES = 200
+REFERENCE_LINK_SUCCESS = 0.95
+TOO_CLOSE_MM = 500
 COVERAGE_CHECK_DROP = 0.15
 COVERAGE_FAIL = 0.5
 BIAS_CHECK_MM = 120
@@ -150,7 +152,9 @@ def _fit_qualities(uids, cells):
 
 
 def separate_receptions(uids, receptions):
-   """How well each device hears and is heard, overall and through each antenna, with its partners allowed for."""
+   """How well each device hears and is heard, overall and through each antenna, with its partners allowed for, and the
+   devices shown healthy that they were measured against: those in a pair that decoded each other at least
+   REFERENCE_LINK_SUCCESS of the time, both ways and on every antenna, or none."""
    within = [r for r in receptions if r['receiver'] != r['sender'] and r['receiver'] in uids and r['sender'] in uids]
    antennas = max([0] + [len(r['rx_ok']) for r in within])
 
@@ -181,10 +185,7 @@ def separate_receptions(uids, receptions):
          'hears_by_antenna': hears_by_antenna, 'heard_by_antenna': heard_by_antenna,
       }
 
-   # Second pass: each device measured directly against the devices with nothing wrong with them at all, neither
-   # receiving nor sending, through any antenna. A damaged antenna usually hurts both ways, and some partners more than
-   # others, so a device suspect on either side is no reference for anyone. Measuring can clear a device the fit
-   # doubted or flag one it trusted, so it is repeated against the devices it leaves clean until that set stops changing.
+   # Second pass: each device measured directly against the devices shown healthy, or against every other where none is
    def share(cells):
       total = sum(cell['total'] for cell in cells)
       return sum(cell['ok'] for cell in cells) / total if total >= ANTENNA_MIN_SAMPLES else None
@@ -198,7 +199,7 @@ def separate_receptions(uids, receptions):
          fit = fitted[uid]
          heard_from = lambda cells: [cell for cell in cells if cell['receiver'] == uid and cell['sender'] in references]
          heard_by = lambda cells: [cell for cell in cells if cell['sender'] == uid and cell['receiver'] in references]
-         # A device with no clean partner to be measured against keeps what the fit made of it
+         # A device with no partner to be measured against keeps what the fit made of it
          hearing = len(heard_from(pooled_cells)) > 0
          heard = len(heard_by(pooled_cells)) > 0
          hears_by_antenna = [share(heard_from(cells)) for cells in antenna_cells] if hearing else fit['hears_by_antenna']
@@ -210,23 +211,20 @@ def separate_receptions(uids, receptions):
          }
       return measured
 
-   def clean(qualities):
-      best = lambda key: max([0] + [q[key] for q in qualities.values() if q[key] is not None])
-      best_hears, best_heard = best('hears'), best('heard')
-      return {uid for uid in uids if _judge_quality(qualities[uid], best_hears, best_heard) == ([], [])}
+   # One way of a pair, on all antennas together (which must have the receives to judge) or on one (which need not)
+   def reaches(cells, receiver, sender, required):
+      cell = next((c for c in cells if c['receiver'] == receiver and c['sender'] == sender), None)
+      if cell is None or cell['total'] < ANTENNA_MIN_SAMPLES:
+         return not required
+      return cell['ok'] / cell['total'] >= REFERENCE_LINK_SUCCESS
 
-   qualities = fitted
-   references = clean(fitted)
-   for _ in range(10):
-      if not references:
-         break
-      qualities = measure(references)
-      following = clean(qualities)
-      settled = following == references
-      references = following
-      if settled:
-         break
-   return qualities
+   healthy = set()
+   for i, a in enumerate(uids):
+      for b in uids[i + 1:]:
+         pooled_both = reaches(pooled_cells, a, b, True) and reaches(pooled_cells, b, a, True)
+         if pooled_both and all(reaches(cells, a, b, False) and reaches(cells, b, a, False) for cells in antenna_cells):
+            healthy.update((a, b))
+   return {'qualities': measure(healthy or set(uids)), 'references': [uid for uid in uids if uid in healthy]}
 
 
 def _listed(items):
@@ -234,9 +232,10 @@ def _listed(items):
    return ' and '.join(items) if len(items) <= 2 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
-def _judge_quality(quality, best_hears, best_heard):
-   """What a device's own receiving and transmitting say about it, against the best device's."""
+def _judge_quality(quality, best_hears, best_heard, referenced):
+   """What a device's own receiving and transmitting say about it, against the best device's, or against perfection where no device is shown healthy."""
    fails, checks = [], []
+   partners = 'the healthy tags' if referenced else 'the other tags'
 
    def judge(excess, message, fail_message, fail_at, check_at):
       if excess > fail_at:
@@ -246,12 +245,14 @@ def _judge_quality(quality, best_hears, best_heard):
 
    if quality['hears'] is not None:
       judge(best_hears - quality['hears'],
-            f"{_percent(1 - quality['hears'])} of its receives from the healthy tags failed, against {_percent(1 - best_hears)} for the tag that hears best.",
+            f"{_percent(1 - quality['hears'])} of its receives from the healthy tags failed, against {_percent(1 - best_hears)} for the tag that hears best."
+            if referenced else f"{_percent(1 - quality['hears'])} of its receives failed.",
             'A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.',
             RX_FAILURE_FAIL_EXCESS, RX_FAILURE_CHECK_EXCESS)
    if quality['heard'] is not None:
       judge(best_heard - quality['heard'],
-            f"The healthy tags failed to receive {_percent(1 - quality['heard'])} of what it sent, against {_percent(1 - best_heard)} for the tag heard best.",
+            f"The healthy tags failed to receive {_percent(1 - quality['heard'])} of what it sent, against {_percent(1 - best_heard)} for the tag heard best."
+            if referenced else f"The other tags failed to receive {_percent(1 - quality['heard'])} of what it sent.",
             'A weak transmitter, or a damaged antenna or connection.',
             RX_FAILURE_FAIL_EXCESS, RX_FAILURE_CHECK_EXCESS)
    # Every antenna well behind its best, receiving or sending: the same damage shows both ways, and two can be damaged
@@ -271,8 +272,8 @@ def _judge_quality(quality, best_hears, best_heard):
       failed = _listed([_percent(entry[1]) for entry in behind])
       against = (f'{_percent(rest[0][1])} through antenna {rest[0][0] + 1}' if len(rest) == 1
                  else f"{_listed([_percent(entry[1]) for entry in rest])} through the others")
-      message = (f'{which[0].upper()}{which[1:]} failed {failed} of its receives from the healthy tags, against {against}.' if receiving
-                 else f'The healthy tags failed to receive {failed} of what it sent through {which}, against {against}.')
+      message = (f"{which[0].upper()}{which[1:]} failed {failed} of its receives{' from the healthy tags' if referenced else ''}, against {against}." if receiving
+                 else f'{partners[0].upper()}{partners[1:]} failed to receive {failed} of what it sent through {which}, against {against}.')
       if any(entry[1] - best[1] > ANTENNA_FAIL_SPREAD for entry in behind):
          fails.append(f"{message} {'That antenna, its switch, or its connection is suspect.' if len(behind) == 1 else 'Those antennas, their switch, or their connections are suspect.'}")
       else:
@@ -345,6 +346,14 @@ def analyse_radio(devices, positions=None):
       notes.append("The positions entered do not let each tag's distance offset be told apart — it needs at least three tags with positions and ranges between them.")
    if not positions:
       notes.append('No positions entered, so distances are checked for consistency only. Enter where each tag sat to check accuracy as well.')
+   too_close = sorted((link for link in links if link['median_mm'] is not None and link['median_mm'] < TOO_CLOSE_MM), key=lambda link: link['median_mm'])
+   if too_close:
+      label = lambda uid: next(device['label'] for device in devices if device['uid'] == uid)
+      closest = too_close[0]
+      cm = max(0, _js_round(closest['median_mm'] / 10))
+      notes.append((f"{label(closest['a'])} and {label(closest['b'])} measured about {cm} cm apart." if len(too_close) == 1
+                    else f"{len(too_close)} pairs of tags measured closer than 2 feet, the closest {label(closest['a'])} and {label(closest['b'])} at about {cm} cm.") +
+                   ' Place every tag at least 2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail.')
 
    # Each device's own figures
    figures = {}
@@ -381,8 +390,14 @@ def analyse_radio(devices, positions=None):
    if len(loaded) >= 2 and all((d['summary']['diagnostics'] or {}).get('by_sender') is not None for d in loaded):
       receptions = [{'receiver': d['uid'], 'sender': counts['uid'], 'rx_ok': counts['rx_ok_by_antenna'], 'rx_failed': counts['rx_failed_by_antenna']}
                     for d in loaded for counts in d['summary']['diagnostics']['by_sender']]
-   qualities = separate_receptions([d['uid'] for d in loaded], receptions) if receptions else None
-   best_of = lambda key: max([0] + [q[key] for q in (qualities or {}).values() if q[key] is not None])
+   separation = separate_receptions([d['uid'] for d in loaded], receptions) if receptions else None
+   qualities = separation['qualities'] if separation else None
+   referenced = bool(separation and separation['references'])
+   if separation and not referenced:
+      notes.append(f"No two tags decoded at least {_percent(REFERENCE_LINK_SUCCESS)} of each other's ranging both ways, so none can be shown healthy to judge the others by. "
+                   'Each tag is judged on its own counts instead. Test with at least two tags known to be good.')
+   # Against the best device where some are shown healthy, and against perfection where none is
+   best_of = lambda key: 1 if not referenced else max([0] + [q[key] for q in (qualities or {}).values() if q[key] is not None])
    best_hears, best_heard = best_of('hears'), best_of('heard')
 
    results = []
@@ -408,7 +423,7 @@ def analyse_radio(devices, positions=None):
       separated = qualities.get(device['uid']) if qualities else None
       quality = separated if separated and (separated['hears'] is not None or separated['heard'] is not None) else None
       if quality:
-         judged_fails, judged_checks = _judge_quality(quality, best_hears, best_heard)
+         judged_fails, judged_checks = _judge_quality(quality, best_hears, best_heard, referenced)
          fails.extend(judged_fails)
          checks.extend(judged_checks)
 
@@ -473,7 +488,8 @@ def analyse_radio(devices, positions=None):
       })
 
    return {'window_start_ms': None if start is None else start * bin_ms, 'window_end_ms': None if end is None else end * bin_ms,
-           'devices': results, 'links': links, 'notes': notes, **({'receptions': receptions} if receptions else {})}
+           'devices': results, 'links': links, 'notes': notes,
+           **({'receptions': receptions, 'references': separation['references']} if receptions else {})}
 
 
 def _millimetre(value):

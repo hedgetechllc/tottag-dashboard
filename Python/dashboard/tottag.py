@@ -145,6 +145,7 @@ def radio_wording(text):
    text = re.sub(r'(\d+) of the (\d+) selected (?:devices|tags) (?:has|have) no log loaded, so', r'\1 of the \2 TotTags in the test sent no data, so', text)
    text = re.sub(r'No positions entered, so distances are checked for consistency only\. Enter where each (?:device|tag) sat to check accuracy as well\.',
                  'No layout chosen, so distances are checked for consistency only. Choose the circle or line the TotTags sit in to check accuracy as well.', text)
+   text = re.sub(r'about (\d+) cm\b', lambda match: f'about {int(match.group(1)) * 10 / MM_PER_INCH:.0f} in', text)
    return re.sub(r'(\d+) mm', lambda match: f'{int(match.group(1)) / MM_PER_INCH:.1f} in', text)
 
 class DetailsMismatch(IOError):
@@ -1735,8 +1736,9 @@ class TotTagGUI(tk.Frame):
       about = tk.Label(body, justify=tk.LEFT, anchor=tk.W, text=(
          'Tests the chosen TotTags over Bluetooth to detect potential hardware failures before deployment. Nothing is '
          "logged, a TotTag's deployment is left as it was, and every TotTag restarts back to normal when the test ends. Set "
-         'each device where they can see each other, at least 2 feet apart. Verdicts will appear within the first minute '
-         'of testing and update every 15 seconds.'))
+         'the devices where they can all see each other, every one at least 2 feet from every other: a circle or a line works. '
+         'Include at least two devices known to be good. Verdicts will appear within the first minute of testing and update '
+         'every 15 seconds.'))
       about.pack(anchor=tk.W, fill=tk.X, pady=(2, 6))
       body.bind('<Configure>', lambda event: about.configure(wraplength=max(200, event.width - 10)))
 

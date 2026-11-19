@@ -163,7 +163,8 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
             <li>Put the tags on their chargers, or leave them running a deployment, so they can be reached.</li>
             <li>{helperRunning ? 'Add the tags, all at once from the list.' : 'Add each tag. The tags used most recently can be added all at once.'}</li>
             <li>Start the test. Each tag restarts into it and begins measuring, on its charger or off it.</li>
-            <li>Set them where they can all see each other, at least half a meter apart. The test keeps running as they move.</li>
+            <li>Set them where they can all see each other, every tag at least 2 feet (60 cm) from every other: a circle or a line
+              works. Include at least two tags known to be good. The test keeps running as they move.</li>
             <li>Verdicts appear within the first minute and update every 15 seconds; they firm up once every tag has a minute of data.</li>
           </ol>
           <div className="actions">
@@ -216,6 +217,7 @@ export function LiveRadioCheck({ labelFor }: { labelFor: (eui: Uint8Array) => st
                 {[...result.devices]
                   .sort((a, b) => VERDICT_ORDER[a.verdict] - VERDICT_ORDER[b.verdict] || a.label.localeCompare(b.label))
                   .map((device) => <RadioCard key={device.uid} device={device} provisional={!finished}
+                    referenced={result.references?.length !== 0}
                     name={deployment.devices.find((d) => d.uid === device.uid)?.name ?? device.label} />)}
               </div>
               <LinkMatrix devices={deployment.devices} links={result.links} />

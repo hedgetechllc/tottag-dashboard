@@ -3703,6 +3703,1372 @@
     ],
     "notes": ["No positions entered, so distances are checked for consistency only. Enter where each tag sat to check accuracy as well."]
    }
+  },
+  {
+   "name": "four flagged tags pressed together, none of them healthy",
+   "devices": [
+    {
+     "uid": 78,
+     "label": "4E",
+     "summary": {
+      "experimentStartTime": 1791300000,
+      "deploymentUids": [78,99,156,198],
+      "deploymentLabels": ["4E","63","9C","C6"],
+      "selfUid": 78,
+      "firstMs": 5000,
+      "lastMs": 320000,
+      "binMs": 60000,
+      "rowsByBin": [
+       [0,118],
+       [1,118],
+       [2,117],
+       [3,117],
+       [4,117],
+       [5,118]
+      ],
+      "peers": [
+       {
+        "uid": 99,
+        "bins": [
+         [0,115,211,11],
+         [1,115,209,12],
+         [2,113,213,12],
+         [3,114,215,14],
+         [4,116,212,13],
+         [5,116,209,13]
+        ]
+       },
+       {
+        "uid": 156,
+        "bins": [
+         [0,115,298,14],
+         [1,114,302,12],
+         [2,114,297,10],
+         [3,116,300,10],
+         [4,116,303,14],
+         [5,116,300,14]
+        ]
+       },
+       {
+        "uid": 198,
+        "bins": [
+         [0,114,216,13],
+         [1,115,214,12],
+         [2,115,215,14],
+         [3,114,210,12],
+         [4,113,211,14],
+         [5,114,209,11]
+        ]
+       }
+      ],
+      "diagnostics": {
+       "rxOk": 5969,
+       "rxFailed": 6991,
+       "rxOkByAntenna": [1381,3172,1416],
+       "rxFailedByAntenna": [2939,1148,2904],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 99,
+         "rxOkByAntenna": [338,1131,350],
+         "rxFailedByAntenna": [1102,309,1090]
+        },
+        {
+         "uid": 156,
+         "rxOkByAntenna": [411,889,395],
+         "rxFailedByAntenna": [1029,551,1045]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [632,1152,671],
+         "rxFailedByAntenna": [808,288,769]
+        }
+       ]
+      },
+      "aborts": 0
+     }
+    },
+    {
+     "uid": 99,
+     "label": "63",
+     "summary": {
+      "experimentStartTime": 1791300000,
+      "deploymentUids": [78,99,156,198],
+      "deploymentLabels": ["4E","63","9C","C6"],
+      "selfUid": 99,
+      "firstMs": 5000,
+      "lastMs": 320000,
+      "binMs": 60000,
+      "rowsByBin": [
+       [0,117],
+       [1,118],
+       [2,117],
+       [3,118],
+       [4,118],
+       [5,117]
+      ],
+      "peers": [
+       {
+        "uid": 78,
+        "bins": [
+         [0,114,214,10],
+         [1,115,215,14],
+         [2,116,209,14],
+         [3,115,212,12],
+         [4,114,214,14],
+         [5,116,215,14]
+        ]
+       },
+       {
+        "uid": 156,
+        "bins": [
+         [0,114,215,12],
+         [1,116,210,10],
+         [2,114,211,14],
+         [3,116,213,14],
+         [4,114,216,13],
+         [5,115,215,13]
+        ]
+       },
+       {
+        "uid": 198,
+        "bins": [
+         [0,116,302,14],
+         [1,116,298,11],
+         [2,113,303,14],
+         [3,114,300,12],
+         [4,113,297,13],
+         [5,116,302,10]
+        ]
+       }
+      ],
+      "diagnostics": {
+       "rxOk": 7294,
+       "rxFailed": 5666,
+       "rxOkByAntenna": [2245,1558,3491],
+       "rxFailedByAntenna": [2075,2762,829],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 78,
+         "rxOkByAntenna": [722,394,1370],
+         "rxFailedByAntenna": [718,1046,70]
+        },
+        {
+         "uid": 156,
+         "rxOkByAntenna": [602,509,781],
+         "rxFailedByAntenna": [838,931,659]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [921,655,1340],
+         "rxFailedByAntenna": [519,785,100]
+        }
+       ]
+      },
+      "aborts": 0
+     }
+    },
+    {
+     "uid": 156,
+     "label": "9C",
+     "summary": {
+      "experimentStartTime": 1791300000,
+      "deploymentUids": [78,99,156,198],
+      "deploymentLabels": ["4E","63","9C","C6"],
+      "selfUid": 156,
+      "firstMs": 5000,
+      "lastMs": 320000,
+      "binMs": 60000,
+      "rowsByBin": [
+       [0,119],
+       [1,118],
+       [2,119],
+       [3,117],
+       [4,118],
+       [5,118]
+      ],
+      "peers": [
+       {
+        "uid": 78,
+        "bins": [
+         [0,113,297,11],
+         [1,114,302,13],
+         [2,116,299,12],
+         [3,114,300,11],
+         [4,116,301,13],
+         [5,114,300,10]
+        ]
+       },
+       {
+        "uid": 99,
+        "bins": [
+         [0,113,209,12],
+         [1,116,211,10],
+         [2,116,215,12],
+         [3,115,216,14],
+         [4,114,211,10],
+         [5,116,215,13]
+        ]
+       },
+       {
+        "uid": 198,
+        "bins": [
+         [0,114,210,14],
+         [1,116,212,13],
+         [2,114,212,14],
+         [3,114,215,14],
+         [4,115,211,14],
+         [5,115,215,13]
+        ]
+       }
+      ],
+      "diagnostics": {
+       "rxOk": 7039,
+       "rxFailed": 5921,
+       "rxOkByAntenna": [3058,2502,1479],
+       "rxFailedByAntenna": [1262,1818,2841],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 78,
+         "rxOkByAntenna": [1034,580,600],
+         "rxFailedByAntenna": [406,860,840]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [700,954,301],
+         "rxFailedByAntenna": [740,486,1139]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [1324,968,578],
+         "rxFailedByAntenna": [116,472,862]
+        }
+       ]
+      },
+      "aborts": 0
+     }
+    },
+    {
+     "uid": 198,
+     "label": "C6",
+     "summary": {
+      "experimentStartTime": 1791300000,
+      "deploymentUids": [78,99,156,198],
+      "deploymentLabels": ["4E","63","9C","C6"],
+      "selfUid": 198,
+      "firstMs": 5000,
+      "lastMs": 320000,
+      "binMs": 60000,
+      "rowsByBin": [
+       [0,118],
+       [1,117],
+       [2,118],
+       [3,117],
+       [4,118],
+       [5,118]
+      ],
+      "peers": [
+       {
+        "uid": 78,
+        "bins": [
+         [0,116,210,13],
+         [1,114,214,11],
+         [2,115,214,12],
+         [3,115,212,14],
+         [4,116,211,12],
+         [5,114,213,13]
+        ]
+       },
+       {
+        "uid": 99,
+        "bins": [
+         [0,114,296,13],
+         [1,114,297,13],
+         [2,113,303,11],
+         [3,113,298,13],
+         [4,116,301,10],
+         [5,115,303,13]
+        ]
+       },
+       {
+        "uid": 156,
+        "bins": [
+         [0,115,209,11],
+         [1,116,216,11],
+         [2,116,211,13],
+         [3,114,214,12],
+         [4,115,215,10],
+         [5,113,213,11]
+        ]
+       }
+      ],
+      "diagnostics": {
+       "rxOk": 8274,
+       "rxFailed": 4686,
+       "rxOkByAntenna": [2514,2989,2771],
+       "rxFailedByAntenna": [1806,1331,1549],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 78,
+         "rxOkByAntenna": [1000,758,1341],
+         "rxFailedByAntenna": [440,682,99]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [681,1247,676],
+         "rxFailedByAntenna": [759,193,764]
+        },
+        {
+         "uid": 156,
+         "rxOkByAntenna": [833,984,754],
+         "rxFailedByAntenna": [607,456,686]
+        }
+       ]
+      },
+      "aborts": 0
+     }
+    }
+   ],
+   "positions": [
+    [78,0.15,0],
+    [99,0,0.15],
+    [156,-0.15,0],
+    [198,0,-0.15]
+   ],
+   "expected": {
+    "windowStartMs": 60000,
+    "windowEndMs": 300000,
+    "devices": [
+     {
+      "uid": 78,
+      "label": "4E",
+      "verdict": "fail",
+      "reasons": ["54% of its receives failed. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The other tags failed to receive 40% of what it sent. A weak transmitter, or a damaged antenna or connection.","Antennas 1 and 3 failed 68% and 67% of its receives, against 27% through antenna 2. Those antennas, their switch, or their connections are suspect.","The other tags failed to receive 36% and 60% of what it sent through antennas 1 and 2, against 23% through antenna 3. Those antennas, their switch, or their connections are suspect."],
+      "participation": 0.9770833333333333,
+      "rxFailureRate": 0.539429012345679,
+      "antennaFailureRates": [0.680324074074074,0.2657407407407407,0.6722222222222223],
+      "linkCoverage": 0.9541666666666667,
+      "biasMm": 0.6226552146785783,
+      "noiseMm": 17.7912,
+      "diagnostics": {
+       "rxOk": 5969,
+       "rxFailed": 6991,
+       "rxOkByAntenna": [1381,3172,1416],
+       "rxFailedByAntenna": [2939,1148,2904],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 99,
+         "rxOkByAntenna": [338,1131,350],
+         "rxFailedByAntenna": [1102,309,1090]
+        },
+        {
+         "uid": 156,
+         "rxOkByAntenna": [411,889,395],
+         "rxFailedByAntenna": [1029,551,1045]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [632,1152,671],
+         "rxFailedByAntenna": [808,288,769]
+        }
+       ]
+      },
+      "aborts": 0,
+      "quality": {
+       "hears": 0.460570987654321,
+       "heard": 0.6017746913580246,
+       "hearsByAntenna": [0.3196759259259259,0.7342592592592593,0.3277777777777778],
+       "heardByAntenna": [0.637962962962963,0.4009259259259259,0.7664351851851852]
+      }
+     },
+     {
+      "uid": 99,
+      "label": "63",
+      "verdict": "fail",
+      "reasons": ["44% of its receives failed. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The other tags failed to receive 51% of what it sent. A weak transmitter, or a damaged antenna or connection.","Antennas 1 and 2 failed 48% and 64% of its receives, against 19% through antenna 3. Those antennas, their switch, or their connections are suspect.","The other tags failed to receive 60% and 69% of what it sent through antennas 1 and 3, against 23% through antenna 2. Those antennas, their switch, or their connections are suspect."],
+      "participation": 0.98125,
+      "rxFailureRate": 0.43719135802469133,
+      "antennaFailureRates": [0.48032407407407407,0.6393518518518518,0.19189814814814815],
+      "linkCoverage": 0.9583333333333334,
+      "biasMm": -0.6273447853214219,
+      "noiseMm": 18.5325,
+      "diagnostics": {
+       "rxOk": 7294,
+       "rxFailed": 5666,
+       "rxOkByAntenna": [2245,1558,3491],
+       "rxFailedByAntenna": [2075,2762,829],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 78,
+         "rxOkByAntenna": [722,394,1370],
+         "rxFailedByAntenna": [718,1046,70]
+        },
+        {
+         "uid": 156,
+         "rxOkByAntenna": [602,509,781],
+         "rxFailedByAntenna": [838,931,659]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [921,655,1340],
+         "rxFailedByAntenna": [519,785,100]
+        }
+       ]
+      },
+      "aborts": 0,
+      "quality": {
+       "hears": 0.5628086419753087,
+       "heard": 0.4921296296296296,
+       "hearsByAntenna": [0.5196759259259259,0.36064814814814816,0.8081018518518519],
+       "heardByAntenna": [0.39791666666666664,0.7712962962962963,0.3071759259259259]
+      }
+     },
+     {
+      "uid": 156,
+      "label": "9C",
+      "verdict": "fail",
+      "reasons": ["46% of its receives failed. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The other tags failed to receive 52% of what it sent. A weak transmitter, or a damaged antenna or connection.","Antennas 2 and 3 failed 42% and 66% of its receives, against 29% through antenna 1. Those antennas, their switch, or their connections are suspect.","The other tags failed to receive 57% and 55% of what it sent through antennas 1 and 3, against 45% through antenna 2."],
+      "participation": 0.9833333333333333,
+      "rxFailureRate": 0.45686728395061726,
+      "antennaFailureRates": [0.29212962962962963,0.42083333333333334,0.6576388888888889],
+      "linkCoverage": 0.9583333333333334,
+      "biasMm": 0.3726552146785783,
+      "noiseMm": 18.5325,
+      "diagnostics": {
+       "rxOk": 7039,
+       "rxFailed": 5921,
+       "rxOkByAntenna": [3058,2502,1479],
+       "rxFailedByAntenna": [1262,1818,2841],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 78,
+         "rxOkByAntenna": [1034,580,600],
+         "rxFailedByAntenna": [406,860,840]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [700,954,301],
+         "rxFailedByAntenna": [740,486,1139]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [1324,968,578],
+         "rxFailedByAntenna": [116,472,862]
+        }
+       ]
+      },
+      "aborts": 0,
+      "quality": {
+       "hears": 0.5431327160493827,
+       "heard": 0.4751543209876543,
+       "hearsByAntenna": [0.7078703703703704,0.5791666666666667,0.3423611111111111],
+       "heardByAntenna": [0.4273148148148148,0.5513888888888889,0.44675925925925924]
+      }
+     },
+     {
+      "uid": 198,
+      "label": "C6",
+      "verdict": "fail",
+      "reasons": ["36% of its receives failed. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The other tags failed to receive 36% of what it sent. A weak transmitter, or a damaged antenna or connection.","Antenna 1 failed 42% of its receives, against 31% and 36% through the others."],
+      "participation": 0.9791666666666666,
+      "rxFailureRate": 0.36157407407407405,
+      "antennaFailureRates": [0.41805555555555557,0.30810185185185185,0.35856481481481484],
+      "linkCoverage": 0.9583333333333334,
+      "biasMm": 0.1226552146785783,
+      "noiseMm": 18.5325,
+      "diagnostics": {
+       "rxOk": 8274,
+       "rxFailed": 4686,
+       "rxOkByAntenna": [2514,2989,2771],
+       "rxFailedByAntenna": [1806,1331,1549],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 78,
+         "rxOkByAntenna": [1000,758,1341],
+         "rxFailedByAntenna": [440,682,99]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [681,1247,676],
+         "rxFailedByAntenna": [759,193,764]
+        },
+        {
+         "uid": 156,
+         "rxOkByAntenna": [833,984,754],
+         "rxFailedByAntenna": [607,456,686]
+        }
+       ]
+      },
+      "aborts": 0,
+      "quality": {
+       "hears": 0.6384259259259258,
+       "heard": 0.6358796296296296,
+       "hearsByAntenna": [0.5819444444444445,0.6918981481481481,0.6414351851851852],
+       "heardByAntenna": [0.6659722222222222,0.6423611111111112,0.5993055555555555]
+      }
+     }
+    ],
+    "links": [
+     {
+      "a": 78,
+      "b": 99,
+      "coverageAtoB": 0.9541666666666667,
+      "coverageBtoA": 0.9583333333333334,
+      "medianMm": 212.5,
+      "noiseMm": 20.0151,
+      "trueMm": 212.13203435596427,
+      "residualMm": 0.36796564403573484
+     },
+     {
+      "a": 78,
+      "b": 156,
+      "coverageAtoB": 0.9583333333333334,
+      "coverageBtoA": 0.9583333333333334,
+      "medianMm": 300.5,
+      "noiseMm": 17.7912,
+      "trueMm": 300,
+      "residualMm": 0.5
+     },
+     {
+      "a": 78,
+      "b": 198,
+      "coverageAtoB": 0.9520833333333333,
+      "coverageBtoA": 0.9583333333333334,
+      "medianMm": 213,
+      "noiseMm": 17.7912,
+      "trueMm": 212.13203435596427,
+      "residualMm": 0.8679656440357348
+     },
+     {
+      "a": 99,
+      "b": 156,
+      "coverageAtoB": 0.9583333333333334,
+      "coverageBtoA": 0.9604166666666667,
+      "medianMm": 212,
+      "noiseMm": 18.5325,
+      "trueMm": 212.13203435596427,
+      "residualMm": -0.13203435596426516
+     },
+     {
+      "a": 99,
+      "b": 198,
+      "coverageAtoB": 0.95,
+      "coverageBtoA": 0.95,
+      "medianMm": 299,
+      "noiseMm": 18.5325,
+      "trueMm": 300,
+      "residualMm": -1
+     },
+     {
+      "a": 156,
+      "b": 198,
+      "coverageAtoB": 0.95625,
+      "coverageBtoA": 0.9604166666666667,
+      "medianMm": 213,
+      "noiseMm": 19.273799999999998,
+      "trueMm": 212.13203435596427,
+      "residualMm": 0.8679656440357348
+     }
+    ],
+    "notes": ["6 pairs of tags measured closer than 2 feet, the closest 63 and 9C at about 21 cm. Place every tag at least 2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail.","No two tags decoded at least 95% of each other's ranging both ways, so none can be shown healthy to judge the others by. Each tag is judged on its own counts instead. Test with at least two tags known to be good."],
+    "receptions": [
+     {
+      "receiver": 78,
+      "sender": 99,
+      "rxOk": [338,1131,350],
+      "rxFailed": [1102,309,1090]
+     },
+     {
+      "receiver": 78,
+      "sender": 156,
+      "rxOk": [411,889,395],
+      "rxFailed": [1029,551,1045]
+     },
+     {
+      "receiver": 78,
+      "sender": 198,
+      "rxOk": [632,1152,671],
+      "rxFailed": [808,288,769]
+     },
+     {
+      "receiver": 99,
+      "sender": 78,
+      "rxOk": [722,394,1370],
+      "rxFailed": [718,1046,70]
+     },
+     {
+      "receiver": 99,
+      "sender": 156,
+      "rxOk": [602,509,781],
+      "rxFailed": [838,931,659]
+     },
+     {
+      "receiver": 99,
+      "sender": 198,
+      "rxOk": [921,655,1340],
+      "rxFailed": [519,785,100]
+     },
+     {
+      "receiver": 156,
+      "sender": 78,
+      "rxOk": [1034,580,600],
+      "rxFailed": [406,860,840]
+     },
+     {
+      "receiver": 156,
+      "sender": 99,
+      "rxOk": [700,954,301],
+      "rxFailed": [740,486,1139]
+     },
+     {
+      "receiver": 156,
+      "sender": 198,
+      "rxOk": [1324,968,578],
+      "rxFailed": [116,472,862]
+     },
+     {
+      "receiver": 198,
+      "sender": 78,
+      "rxOk": [1000,758,1341],
+      "rxFailed": [440,682,99]
+     },
+     {
+      "receiver": 198,
+      "sender": 99,
+      "rxOk": [681,1247,676],
+      "rxFailed": [759,193,764]
+     },
+     {
+      "receiver": 198,
+      "sender": 156,
+      "rxOk": [833,984,754],
+      "rxFailed": [607,456,686]
+     }
+    ],
+    "references": []
+   }
+  },
+  {
+   "name": "a healthy pair among flagged tags, the pair too close together",
+   "devices": [
+    {
+     "uid": 20,
+     "label": "Good 1",
+     "summary": {
+      "experimentStartTime": 1791300000,
+      "deploymentUids": [20,62,99,198],
+      "deploymentLabels": ["Good 1","Good 2","63","C6"],
+      "selfUid": 20,
+      "firstMs": 5000,
+      "lastMs": 320000,
+      "binMs": 60000,
+      "rowsByBin": [
+       [0,118],
+       [1,117],
+       [2,117],
+       [3,119],
+       [4,118],
+       [5,119]
+      ],
+      "peers": [
+       {
+        "uid": 62,
+        "bins": [
+         [0,113,303,10],
+         [1,116,302,13],
+         [2,114,298,12],
+         [3,114,299,13],
+         [4,116,301,14],
+         [5,113,300,12]
+        ]
+       },
+       {
+        "uid": 99,
+        "bins": [
+         [0,114,1500,12],
+         [1,115,1502,13],
+         [2,116,1501,12],
+         [3,116,1501,11],
+         [4,114,1501,14],
+         [5,114,1503,12]
+        ]
+       },
+       {
+        "uid": 198,
+        "bins": [
+         [0,115,1501,14],
+         [1,116,1504,11],
+         [2,115,1501,14],
+         [3,114,1497,13],
+         [4,115,1501,13],
+         [5,116,1499,12]
+        ]
+       }
+      ],
+      "diagnostics": {
+       "rxOk": 10934,
+       "rxFailed": 2026,
+       "rxOkByAntenna": [3440,4007,3487],
+       "rxFailedByAntenna": [880,313,833],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 62,
+         "rxOkByAntenna": [1424,1437,1434],
+         "rxFailedByAntenna": [16,3,6]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [704,1281,701],
+         "rxFailedByAntenna": [736,159,739]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [1312,1289,1352],
+         "rxFailedByAntenna": [128,151,88]
+        }
+       ]
+      },
+      "aborts": 0
+     }
+    },
+    {
+     "uid": 62,
+     "label": "Good 2",
+     "summary": {
+      "experimentStartTime": 1791300000,
+      "deploymentUids": [20,62,99,198],
+      "deploymentLabels": ["Good 1","Good 2","63","C6"],
+      "selfUid": 62,
+      "firstMs": 5000,
+      "lastMs": 320000,
+      "binMs": 60000,
+      "rowsByBin": [
+       [0,119],
+       [1,117],
+       [2,116],
+       [3,118],
+       [4,117],
+       [5,119]
+      ],
+      "peers": [
+       {
+        "uid": 20,
+        "bins": [
+         [0,114,297,14],
+         [1,116,299,13],
+         [2,114,302,14],
+         [3,115,303,14],
+         [4,113,300,14],
+         [5,116,297,12]
+        ]
+       },
+       {
+        "uid": 99,
+        "bins": [
+         [0,114,1200,11],
+         [1,114,1196,14],
+         [2,116,1203,12],
+         [3,114,1201,11],
+         [4,115,1201,11],
+         [5,115,1200,12]
+        ]
+       },
+       {
+        "uid": 198,
+        "bins": [
+         [0,114,1374,12],
+         [1,115,1377,11],
+         [2,116,1375,14],
+         [3,115,1378,10],
+         [4,114,1372,13],
+         [5,116,1377,10]
+        ]
+       }
+      ],
+      "diagnostics": {
+       "rxOk": 10895,
+       "rxFailed": 2065,
+       "rxOkByAntenna": [3425,4000,3470],
+       "rxFailedByAntenna": [895,320,850],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 20,
+         "rxOkByAntenna": [1420,1427,1430],
+         "rxFailedByAntenna": [20,13,10]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [698,1280,700],
+         "rxFailedByAntenna": [742,160,740]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [1307,1293,1340],
+         "rxFailedByAntenna": [133,147,100]
+        }
+       ]
+      },
+      "aborts": 0
+     }
+    },
+    {
+     "uid": 99,
+     "label": "63",
+     "summary": {
+      "experimentStartTime": 1791300000,
+      "deploymentUids": [20,62,99,198],
+      "deploymentLabels": ["Good 1","Good 2","63","C6"],
+      "selfUid": 99,
+      "firstMs": 5000,
+      "lastMs": 320000,
+      "binMs": 60000,
+      "rowsByBin": [
+       [0,116],
+       [1,117],
+       [2,118],
+       [3,117],
+       [4,118],
+       [5,118]
+      ],
+      "peers": [
+       {
+        "uid": 20,
+        "bins": [
+         [0,116,1498,12],
+         [1,113,1503,12],
+         [2,114,1497,14],
+         [3,114,1497,13],
+         [4,115,1500,10],
+         [5,115,1502,14]
+        ]
+       },
+       {
+        "uid": 62,
+        "bins": [
+         [0,115,1202,11],
+         [1,114,1203,12],
+         [2,115,1197,10],
+         [3,114,1199,14],
+         [4,115,1200,14],
+         [5,115,1199,11]
+        ]
+       },
+       {
+        "uid": 198,
+        "bins": [
+         [0,115,1504,14],
+         [1,114,1504,13],
+         [2,115,1500,13],
+         [3,116,1502,10],
+         [4,115,1498,14],
+         [5,113,1501,14]
+        ]
+       }
+      ],
+      "diagnostics": {
+       "rxOk": 9190,
+       "rxFailed": 3770,
+       "rxOkByAntenna": [2914,2113,4163],
+       "rxFailedByAntenna": [1406,2207,157],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 20,
+         "rxOkByAntenna": [1004,728,1413],
+         "rxFailedByAntenna": [436,712,27]
+        },
+        {
+         "uid": 62,
+         "rxOkByAntenna": [989,729,1423],
+         "rxFailedByAntenna": [451,711,17]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [921,656,1327],
+         "rxFailedByAntenna": [519,784,113]
+        }
+       ]
+      },
+      "aborts": 0
+     }
+    },
+    {
+     "uid": 198,
+     "label": "C6",
+     "summary": {
+      "experimentStartTime": 1791300000,
+      "deploymentUids": [20,62,99,198],
+      "deploymentLabels": ["Good 1","Good 2","63","C6"],
+      "selfUid": 198,
+      "firstMs": 5000,
+      "lastMs": 320000,
+      "binMs": 60000,
+      "rowsByBin": [
+       [0,117],
+       [1,119],
+       [2,117],
+       [3,118],
+       [4,118],
+       [5,118]
+      ],
+      "peers": [
+       {
+        "uid": 20,
+        "bins": [
+         [0,114,1502,10],
+         [1,115,1498,10],
+         [2,116,1503,14],
+         [3,116,1503,11],
+         [4,114,1504,14],
+         [5,113,1500,13]
+        ]
+       },
+       {
+        "uid": 62,
+        "bins": [
+         [0,113,1378,12],
+         [1,115,1376,12],
+         [2,113,1373,10],
+         [3,114,1379,12],
+         [4,114,1373,11],
+         [5,116,1376,10]
+        ]
+       },
+       {
+        "uid": 99,
+        "bins": [
+         [0,113,1497,11],
+         [1,114,1504,12],
+         [2,115,1498,12],
+         [3,114,1498,13],
+         [4,115,1498,11],
+         [5,113,1503,14]
+        ]
+       }
+      ],
+      "diagnostics": {
+       "rxOk": 10932,
+       "rxFailed": 2028,
+       "rxOkByAntenna": [3445,4061,3426],
+       "rxFailedByAntenna": [875,259,894],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 20,
+         "rxOkByAntenna": [1385,1403,1379],
+         "rxFailedByAntenna": [55,37,61]
+        },
+        {
+         "uid": 62,
+         "rxOkByAntenna": [1379,1403,1370],
+         "rxFailedByAntenna": [61,37,70]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [681,1255,677],
+         "rxFailedByAntenna": [759,185,763]
+        }
+       ]
+      },
+      "aborts": 0
+     }
+    }
+   ],
+   "positions": [
+    [20,0,0],
+    [62,0.3,0],
+    [99,1.5,0],
+    [198,0.75,1.3]
+   ],
+   "expected": {
+    "windowStartMs": 60000,
+    "windowEndMs": 300000,
+    "devices": [
+     {
+      "uid": 20,
+      "label": "Good 1",
+      "verdict": "pass",
+      "reasons": [],
+      "participation": 0.98125,
+      "rxFailureRate": 0.15632716049382717,
+      "antennaFailureRates": [0.2037037037037037,0.0724537037037037,0.19282407407407406],
+      "linkCoverage": 0.9583333333333334,
+      "biasMm": 1.1414245398995415,
+      "noiseMm": 19.273799999999998,
+      "diagnostics": {
+       "rxOk": 10934,
+       "rxFailed": 2026,
+       "rxOkByAntenna": [3440,4007,3487],
+       "rxFailedByAntenna": [880,313,833],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 62,
+         "rxOkByAntenna": [1424,1437,1434],
+         "rxFailedByAntenna": [16,3,6]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [704,1281,701],
+         "rxFailedByAntenna": [736,159,739]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [1312,1289,1352],
+         "rxFailedByAntenna": [128,151,88]
+        }
+       ]
+      },
+      "aborts": 0,
+      "quality": {
+       "hears": 0.9942129629629631,
+       "heard": 0.9900462962962964,
+       "hearsByAntenna": [0.9888888888888889,0.9979166666666667,0.9958333333333333],
+       "heardByAntenna": [0.9861111111111112,0.9909722222222223,0.9930555555555556]
+      }
+     },
+     {
+      "uid": 62,
+      "label": "Good 2",
+      "verdict": "pass",
+      "reasons": [],
+      "participation": 0.975,
+      "rxFailureRate": 0.15933641975308643,
+      "antennaFailureRates": [0.20717592592592593,0.07407407407407407,0.19675925925925927],
+      "linkCoverage": 0.95625,
+      "biasMm": 0.2171509202009171,
+      "noiseMm": 17.7912,
+      "diagnostics": {
+       "rxOk": 10895,
+       "rxFailed": 2065,
+       "rxOkByAntenna": [3425,4000,3470],
+       "rxFailedByAntenna": [895,320,850],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 20,
+         "rxOkByAntenna": [1420,1427,1430],
+         "rxFailedByAntenna": [20,13,10]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [698,1280,700],
+         "rxFailedByAntenna": [742,160,740]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [1307,1293,1340],
+         "rxFailedByAntenna": [133,147,100]
+        }
+       ]
+      },
+      "aborts": 0,
+      "quality": {
+       "hears": 0.9900462962962964,
+       "heard": 0.9942129629629631,
+       "hearsByAntenna": [0.9861111111111112,0.9909722222222223,0.9930555555555556],
+       "heardByAntenna": [0.9888888888888889,0.9979166666666667,0.9958333333333333]
+      }
+     },
+     {
+      "uid": 99,
+      "label": "63",
+      "verdict": "fail",
+      "reasons": ["27% of its receives from the healthy tags failed, against 1% for the tag that hears best. A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.","The healthy tags failed to receive 38% of what it sent, against 1% for the tag heard best. A weak transmitter, or a damaged antenna or connection.","Antennas 1 and 2 failed 31% and 49% of its receives from the healthy tags, against 2% through antenna 3. Those antennas, their switch, or their connections are suspect.","The healthy tags failed to receive 51% and 51% of what it sent through antennas 1 and 3, against 11% through antenna 2. Those antennas, their switch, or their connections are suspect."],
+      "participation": 0.9791666666666666,
+      "rxFailureRate": 0.2908950617283951,
+      "antennaFailureRates": [0.32546296296296295,0.5108796296296296,0.03634259259259259],
+      "linkCoverage": 0.9541666666666667,
+      "biasMm": -0.3585754601004585,
+      "noiseMm": 18.5325,
+      "diagnostics": {
+       "rxOk": 9190,
+       "rxFailed": 3770,
+       "rxOkByAntenna": [2914,2113,4163],
+       "rxFailedByAntenna": [1406,2207,157],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 20,
+         "rxOkByAntenna": [1004,728,1413],
+         "rxFailedByAntenna": [436,712,27]
+        },
+        {
+         "uid": 62,
+         "rxOkByAntenna": [989,729,1423],
+         "rxFailedByAntenna": [451,711,17]
+        },
+        {
+         "uid": 198,
+         "rxOkByAntenna": [921,656,1327],
+         "rxFailedByAntenna": [519,784,113]
+        }
+       ]
+      },
+      "aborts": 0,
+      "quality": {
+       "hears": 0.7275462962962963,
+       "heard": 0.6208333333333332,
+       "hearsByAntenna": [0.6920138888888889,0.5059027777777778,0.9847222222222223],
+       "heardByAntenna": [0.48680555555555555,0.8892361111111111,0.4864583333333333]
+      }
+     },
+     {
+      "uid": 198,
+      "label": "C6",
+      "verdict": "check",
+      "reasons": ["The healthy tags failed to receive 9% of what it sent, against 1% for the tag heard best."],
+      "participation": 0.9833333333333333,
+      "rxFailureRate": 0.15648148148148147,
+      "antennaFailureRates": [0.2025462962962963,0.059953703703703703,0.20694444444444443],
+      "linkCoverage": 0.9541666666666667,
+      "biasMm": -0.6159510601624636,
+      "noiseMm": 18.5325,
+      "diagnostics": {
+       "rxOk": 10932,
+       "rxFailed": 2028,
+       "rxOkByAntenna": [3445,4061,3426],
+       "rxFailedByAntenna": [875,259,894],
+       "wakeFailures": 0,
+       "irqStuck": 0,
+       "rxArmLate": 0,
+       "txLate": 0,
+       "samples": 6,
+       "bySender": [
+        {
+         "uid": 20,
+         "rxOkByAntenna": [1385,1403,1379],
+         "rxFailedByAntenna": [55,37,61]
+        },
+        {
+         "uid": 62,
+         "rxOkByAntenna": [1379,1403,1370],
+         "rxFailedByAntenna": [61,37,70]
+        },
+        {
+         "uid": 99,
+         "rxOkByAntenna": [681,1255,677],
+         "rxFailedByAntenna": [759,185,763]
+        }
+       ]
+      },
+      "aborts": 0,
+      "quality": {
+       "hears": 0.9628472222222223,
+       "heard": 0.9135416666666667,
+       "hearsByAntenna": [0.9597222222222223,0.9743055555555555,0.9545138888888889],
+       "heardByAntenna": [0.909375,0.8965277777777778,0.9347222222222222]
+      }
+     }
+    ],
+    "links": [
+     {
+      "a": 20,
+      "b": 62,
+      "coverageAtoB": 0.9583333333333334,
+      "coverageBtoA": 0.9541666666666667,
+      "medianMm": 300.5,
+      "noiseMm": 20.0151,
+      "trueMm": 300,
+      "residualMm": 0.5
+     },
+     {
+      "a": 20,
+      "b": 99,
+      "coverageAtoB": 0.9604166666666667,
+      "coverageBtoA": 0.95,
+      "medianMm": 1501,
+      "noiseMm": 18.5325,
+      "trueMm": 1500,
+      "residualMm": 1
+     },
+     {
+      "a": 20,
+      "b": 198,
+      "coverageAtoB": 0.9583333333333334,
+      "coverageBtoA": 0.9604166666666667,
+      "medianMm": 1502,
+      "noiseMm": 19.273799999999998,
+      "trueMm": 1500.8331019803634,
+      "residualMm": 1.1668980196366192
+     },
+     {
+      "a": 62,
+      "b": 99,
+      "coverageAtoB": 0.95625,
+      "coverageBtoA": 0.9541666666666667,
+      "medianMm": 1200.5,
+      "noiseMm": 17.7912,
+      "trueMm": 1200,
+      "residualMm": 0.5
+     },
+     {
+      "a": 62,
+      "b": 198,
+      "coverageAtoB": 0.9583333333333334,
+      "coverageBtoA": 0.95,
+      "medianMm": 1375.5,
+      "noiseMm": 17.049899999999997,
+      "trueMm": 1375.6816492197606,
+      "residualMm": -0.18164921976062942
+     },
+     {
+      "a": 99,
+      "b": 198,
+      "coverageAtoB": 0.9583333333333334,
+      "coverageBtoA": 0.9541666666666667,
+      "medianMm": 1499,
+      "noiseMm": 18.5325,
+      "trueMm": 1500.8331019803634,
+      "residualMm": -1.8331019803633808
+     }
+    ],
+    "notes": ["Good 1 and Good 2 measured about 30 cm apart. Place every tag at least 2 feet (60 cm) from every other: tags this close reach each other even with damaged antennas, so the check can pass a tag it should fail."],
+    "receptions": [
+     {
+      "receiver": 20,
+      "sender": 62,
+      "rxOk": [1424,1437,1434],
+      "rxFailed": [16,3,6]
+     },
+     {
+      "receiver": 20,
+      "sender": 99,
+      "rxOk": [704,1281,701],
+      "rxFailed": [736,159,739]
+     },
+     {
+      "receiver": 20,
+      "sender": 198,
+      "rxOk": [1312,1289,1352],
+      "rxFailed": [128,151,88]
+     },
+     {
+      "receiver": 62,
+      "sender": 20,
+      "rxOk": [1420,1427,1430],
+      "rxFailed": [20,13,10]
+     },
+     {
+      "receiver": 62,
+      "sender": 99,
+      "rxOk": [698,1280,700],
+      "rxFailed": [742,160,740]
+     },
+     {
+      "receiver": 62,
+      "sender": 198,
+      "rxOk": [1307,1293,1340],
+      "rxFailed": [133,147,100]
+     },
+     {
+      "receiver": 99,
+      "sender": 20,
+      "rxOk": [1004,728,1413],
+      "rxFailed": [436,712,27]
+     },
+     {
+      "receiver": 99,
+      "sender": 62,
+      "rxOk": [989,729,1423],
+      "rxFailed": [451,711,17]
+     },
+     {
+      "receiver": 99,
+      "sender": 198,
+      "rxOk": [921,656,1327],
+      "rxFailed": [519,784,113]
+     },
+     {
+      "receiver": 198,
+      "sender": 20,
+      "rxOk": [1385,1403,1379],
+      "rxFailed": [55,37,61]
+     },
+     {
+      "receiver": 198,
+      "sender": 62,
+      "rxOk": [1379,1403,1370],
+      "rxFailed": [61,37,70]
+     },
+     {
+      "receiver": 198,
+      "sender": 99,
+      "rxOk": [681,1255,677],
+      "rxFailed": [759,185,763]
+     }
+    ],
+    "references": [20,62]
+   }
   }
  ],
  "live": {
@@ -6815,7 +8181,8 @@
       "rxOk": [1036,658,1031],
       "rxFailed": [6,384,11]
      }
-    ]
+    ],
+    "references": [2,11,74]
    }
   },
   "decodedStats": {
