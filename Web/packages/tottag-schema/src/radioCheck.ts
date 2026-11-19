@@ -274,9 +274,10 @@ export interface RadioCheckResult {
 // sender, the two can be told apart. The chance that receiver r decodes sender t is modelled as hears(r) × heard(t),
 // both fitted from every pair at once by iterative proportional fitting, which keeps each device's decodes as a
 // receiver and as a sender at their counted totals. A device is then judged by its own factor, whoever it was tested
-// with. Only the product of the two factors is fixed by the data, so each is reported against the best partner:
-// hears(r) as the share of what the best-heard device sends that r would decode, heard(t) as the share of what t
-// sends that the best-hearing device would decode.
+// with. The fit ranks the devices, but a pairing that fails for its own reasons, such as a null in one device's damaged
+// antenna pointing at another, leaks into both devices' factors and can make a healthy device look weak. So it is only
+// the first pass: each device is then measured directly against the devices with nothing wrong with them, hears(r) as
+// the share of what they sent that r decoded, heard(t) as the share of what t sent that they decoded.
 
 /** One device's receives from another, per antenna. */
 export interface Reception {
@@ -287,9 +288,9 @@ export interface Reception {
 }
 
 export interface TagQuality {
-  /** Share of what the best-heard device sends that this one would decode; null on too few receives to judge. */
+  /** Share of what the devices with nothing wrong with them sent that this one decoded; null on too few receives to judge. */
   readonly hears: number | null;
-  /** Share of what this device sends that the best-hearing device would decode; null likewise. */
+  /** Share of what this device sent that the devices with nothing wrong with them decoded; null likewise. */
   readonly heard: number | null;
   /** The same through each antenna alone. */
   readonly hearsByAntenna: ReadonlyArray<number | null>;
@@ -347,7 +348,7 @@ export function separateReceptions(uids: readonly number[], receptions: readonly
     const judged = values.filter((value): value is number => value !== null);
     return judged.length ? judged.reduce((a, b) => a + b, 0) / judged.length : fallback;
   };
-  return new Map(uids.map((uid) => {
+  const fitted = new Map(uids.map((uid) => {
     const hearsByAntenna = perAntenna.map((fit) => fit.get(uid)!.hears);
     const heardByAntenna = perAntenna.map((fit) => fit.get(uid)!.heard);
     return [uid, {
@@ -355,6 +356,52 @@ export function separateReceptions(uids: readonly number[], receptions: readonly
       hearsByAntenna, heardByAntenna,
     }];
   }));
+
+  // Second pass: each device measured directly against the devices with nothing wrong with them at all, neither
+  // receiving nor sending, through any antenna. A damaged antenna usually hurts both ways, and some partners more than
+  // others, so a device suspect on either side is no reference for anyone. Measuring can clear a device the fit doubted
+  // or flag one it trusted, so it is repeated against the devices it leaves clean until that set stops changing.
+  const share = (cells: readonly Cell[]) => {
+    const total = cells.reduce((sum, cell) => sum + cell.total, 0);
+    return total >= ANTENNA_MIN_SAMPLES ? cells.reduce((sum, cell) => sum + cell.ok, 0) / total : null;
+  };
+  const pooledCells = cellsFor(null);
+  const antennaCells = Array.from({ length: antennas }, (_, antenna) => cellsFor(antenna));
+  const measure = (references: ReadonlySet<number>) => new Map(uids.map((uid) => {
+    const fit = fitted.get(uid)!;
+    const from = (cells: readonly Cell[]) => cells.filter((cell) => cell.receiver === uid && references.has(cell.sender));
+    const by = (cells: readonly Cell[]) => cells.filter((cell) => cell.sender === uid && references.has(cell.receiver));
+    // A device with no clean partner to be measured against keeps what the fit made of it
+    const hearing = from(pooledCells).length > 0;
+    const heardBy = by(pooledCells).length > 0;
+    const hearsByAntenna = hearing ? antennaCells.map((cells) => share(from(cells))) : fit.hearsByAntenna;
+    const heardByAntenna = heardBy ? antennaCells.map((cells) => share(by(cells))) : fit.heardByAntenna;
+    return [uid, {
+      hears: hearing ? mean(hearsByAntenna, share(from(pooledCells))) : fit.hears,
+      heard: heardBy ? mean(heardByAntenna, share(by(pooledCells))) : fit.heard,
+      hearsByAntenna, heardByAntenna,
+    }];
+  }));
+  const clean = (qualities: ReadonlyMap<number, TagQuality>) => {
+    const best = (pick: (quality: TagQuality) => number | null) =>
+      Math.max(0, ...[...qualities.values()].map(pick).filter((value): value is number => value !== null));
+    const bestHears = best((quality) => quality.hears);
+    const bestHeard = best((quality) => quality.heard);
+    return new Set(uids.filter((uid) => {
+      const judged = judgeQuality(qualities.get(uid)!, bestHears, bestHeard);
+      return !judged.fails.length && !judged.checks.length;
+    }));
+  };
+  let qualities: Map<number, TagQuality> = fitted;
+  let references = clean(fitted);
+  for (let round = 0; round < 10 && references.size; round += 1) {
+    qualities = measure(references);
+    const next = clean(qualities);
+    const settled = next.size === references.size && [...next].every((uid) => references.has(uid));
+    references = next;
+    if (settled) break;
+  }
+  return qualities;
 }
 
 export interface RadioCheckInput {
@@ -376,31 +423,44 @@ function judgeQuality(quality: TagQuality, bestHears: number, bestHeard: number)
   };
   if (quality.hears !== null) {
     judge(bestHears - quality.hears,
-      `Allowing for the tags it listened to, ${percent(1 - quality.hears)} of its receives failed, against ${percent(1 - bestHears)} for the tag that hears best.`,
+      `${percent(1 - quality.hears)} of its receives from the healthy tags failed, against ${percent(1 - bestHears)} for the tag that hears best.`,
       'A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.',
       RX_FAILURE_FAIL_EXCESS, RX_FAILURE_CHECK_EXCESS);
   }
   if (quality.heard !== null) {
     judge(bestHeard - quality.heard,
-      `Allowing for the tags listening, ${percent(1 - quality.heard)} of what it sent was not received, against ${percent(1 - bestHeard)} for the tag heard best.`,
+      `The healthy tags failed to receive ${percent(1 - quality.heard)} of what it sent, against ${percent(1 - bestHeard)} for the tag heard best.`,
       'A weak transmitter, or a damaged antenna or connection.',
       RX_FAILURE_FAIL_EXCESS, RX_FAILURE_CHECK_EXCESS);
   }
-  // One antenna worse than its others, receiving or sending: the same damage shows both ways
-  for (const [byAntenna, doing] of [[quality.hearsByAntenna, 'of its receives through it failed'], [quality.heardByAntenna, 'of what it sent through it was not received']] as const) {
-    const misses = byAntenna.map((share, antenna) => [antenna, share === null ? null : 1 - share] as const)
+  // Every antenna well behind its best, receiving or sending: the same damage shows both ways, and two can be damaged
+  for (const receiving of [true, false]) {
+    const misses = (receiving ? quality.hearsByAntenna : quality.heardByAntenna)
+      .map((share, antenna) => [antenna, share === null ? null : 1 - share] as const)
       .filter((entry): entry is readonly [number, number] => entry[1] !== null);
     if (misses.length < 2) continue;
-    const worst = misses.reduce((x, y) => (y[1] > x[1] ? y : x));
     const best = misses.reduce((x, y) => (y[1] < x[1] ? y : x));
-    const others = misses.filter((entry) => entry[0] !== worst[0]).map((entry) => percent(entry[1])).join(' and ');
-    judge(worst[1] - best[1],
-      `Antenna ${worst[0] + 1}: allowing for the other tags, ${percent(worst[1])} ${doing}, against ${others} through the others.`,
-      'That antenna, its switch, or its connection is suspect.',
-      ANTENNA_FAIL_SPREAD, ANTENNA_CHECK_SPREAD);
+    const behind = misses.filter((entry) => entry[1] - best[1] > ANTENNA_CHECK_SPREAD);
+    if (!behind.length) continue;
+    const rest = misses.filter((entry) => !behind.includes(entry));
+    const numbers = listed(behind.map((entry) => `${entry[0] + 1}`));
+    const which = `${behind.length === 1 ? 'antenna' : 'antennas'} ${numbers}`;
+    const failed = listed(behind.map((entry) => percent(entry[1])));
+    const against = rest.length === 1 ? `${percent(rest[0]![1])} through antenna ${rest[0]![0] + 1}` : `${listed(rest.map((entry) => percent(entry[1])))} through the others`;
+    const message = receiving
+      ? `${which[0]!.toUpperCase()}${which.slice(1)} failed ${failed} of its receives from the healthy tags, against ${against}.`
+      : `The healthy tags failed to receive ${failed} of what it sent through ${which}, against ${against}.`;
+    if (behind.some((entry) => entry[1] - best[1] > ANTENNA_FAIL_SPREAD)) {
+      fails.push(`${message} ${behind.length === 1 ? 'That antenna, its switch, or its connection is suspect.' : 'Those antennas, their switch, or their connections are suspect.'}`);
+    } else {
+      checks.push(message);
+    }
   }
   return { fails, checks };
 }
+
+/** "a", "a and b", "a, b and c". */
+const listed = (items: readonly string[]) => (items.length <= 2 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 
 /** Least-squares per-device offsets from link residuals: residual(a, b) ~ bias(a) + bias(b). */
 function solveBiases(uids: readonly number[], residuals: ReadonlyArray<readonly [number, number, number]>): Map<number, number> | null {

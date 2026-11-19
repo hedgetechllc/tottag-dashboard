@@ -125,8 +125,8 @@ export function RadioCard({ device, name, provisional = false }: { device: Radio
           <Stat label="Rounds ranged" value={formatPercent(device.participation)} />
           {quality ? (
             <>
-              <Stat label="Fails to hear" value={formatPercent(missed(quality.hears))} hint="of what the best-heard tag sends" />
-              <Stat label="Goes unheard" value={formatPercent(missed(quality.heard))} hint="by the tag that hears best" />
+              <Stat label="Fails to hear" value={formatPercent(missed(quality.hears))} hint="of what the healthy tags sent" />
+              <Stat label="Goes unheard" value={formatPercent(missed(quality.heard))} hint="by the healthy tags" />
               <Stat label="Fails to hear, by antenna" value={byAntenna(quality.hearsByAntenna) || '—'} />
               <Stat label="Goes unheard, by antenna" value={byAntenna(quality.heardByAntenna) || '—'} />
             </>

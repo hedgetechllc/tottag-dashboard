@@ -43,12 +43,17 @@ test('a radio statistics read carries the receives by sender, and an unknown lay
 });
 
 /** Every tag's receives from every other, from per-antenna qualities: p(r decodes t through a) = q[r][a] × q[t][a]. */
-function receptionsFrom(quality: ReadonlyMap<number, readonly number[]>, perCell = 2400, extraMiss = new Map<number, readonly number[]>()): Reception[] {
+function receptionsFrom(
+  quality: ReadonlyMap<number, readonly number[]>, perCell = 2400, extraMiss = new Map<number, readonly number[]>(),
+  pairMiss = new Map<string, number | readonly number[]>(), sending: ReadonlyMap<number, readonly number[]> = quality,
+): Reception[] {
   const out: Reception[] = [];
   for (const [receiver, rq] of quality) {
-    for (const [sender, sq] of quality) {
+    for (const [sender, sq] of sending) {
       if (receiver === sender) continue;
-      const success = rq.map((q, a) => q * sq[a]! * (1 - (extraMiss.get(receiver)?.[a] ?? 0)));
+      const miss = pairMiss.get(`${receiver}<${sender}`) ?? 0;
+      const pair = (a: number) => 1 - (typeof miss === 'number' ? miss : miss[a]!);
+      const success = rq.map((q, a) => q * sq[a]! * (1 - (extraMiss.get(receiver)?.[a] ?? 0)) * pair(a));
       const rxOk = success.map((p) => Math.round(perCell * p));
       out.push({ receiver, sender, rxOk, rxFailed: rxOk.map((ok) => perCell - ok) });
     }
@@ -98,9 +103,9 @@ function liveSummary(self: number, all: readonly number[], receptions: readonly 
   };
 }
 
-const analyse = (quality: Map<number, readonly number[]>, extraMiss?: Map<number, readonly number[]>) => {
+const analyse = (quality: Map<number, readonly number[]>, extraMiss?: Map<number, readonly number[]>, pairMiss?: Map<string, number | readonly number[]>) => {
   const uids = [...quality.keys()];
-  const receptions = receptionsFrom(quality, 2400, extraMiss);
+  const receptions = receptionsFrom(quality, 2400, extraMiss, pairMiss);
   return analyseRadio({ devices: uids.map((uid) => ({ uid, label: uid.toString(16), summary: liveSummary(uid, uids, receptions) })) });
 };
 
@@ -113,9 +118,13 @@ test('with counts by sender, the good tags pass and the bad ones fail for receiv
   }
   for (const uid of [0x48, 0x49]) {
     assert.equal(verdict(uid).verdict, 'fail');
-    assert.ok(verdict(uid).reasons.some((reason) => /of its receives failed, against/.test(reason)));
-    assert.ok(verdict(uid).reasons.some((reason) => /of what it sent was not received/.test(reason)));
+    assert.ok(verdict(uid).reasons.some((reason) => /^\d+% of its receives from the healthy tags failed, against/.test(reason)));
+    assert.ok(verdict(uid).reasons.some((reason) => /^The healthy tags failed to receive \d+% of what it sent, against/.test(reason)));
   }
+  // 48's first and third antennas are both damaged, and both are named
+  assert.ok(verdict(0x48).reasons.includes(
+    'Antennas 1 and 3 failed 95% and 70% of its receives from the healthy tags, against 1% through antenna 2. Those antennas, their switch, or their connections are suspect.'),
+    verdict(0x48).reasons.join(' | '));
   assert.ok(result.receptions?.length, 'the receptions are there for the page to show');
 });
 
@@ -123,9 +132,45 @@ test('a tag near something transmitting fails to hear everyone on one antenna, a
   const three = new Map<number, readonly number[]>([[0x14, GOOD], [0x3e, GOOD], [0xf4, GOOD]]);
   const result = analyse(three, new Map([[0xf4, [0.26, 0, 0]]]));
   const f4 = result.devices.find((device) => device.uid === 0xf4)!;
-  assert.ok(f4.reasons.some((reason) => /^Antenna 1: .* of its receives through it failed/.test(reason)), f4.reasons.join(' '));
-  assert.ok(!f4.reasons.some((reason) => /was not received/.test(reason)), 'the others hear it fine');
+  assert.ok(f4.reasons.some((reason) => /^Antenna 1 failed \d+% of its receives from the healthy tags/.test(reason)), f4.reasons.join(' '));
+  assert.ok(!f4.reasons.some((reason) => /^The healthy tags/.test(reason)), 'the others hear it fine');
   assert.equal(result.devices.find((device) => device.uid === 0x14)!.verdict, 'pass');
+});
+
+test('one pairing that fails both ways is not blamed on a healthy tag in it', () => {
+  // A live test as it came out: 48 and 49 weak, and F4 and 49 barely hearing each other although close together.
+  // The fit alone split that pairing's losses between them and gave F4 a transmit "Check" it did not deserve.
+  const pairMiss = new Map([[`${0x49}<${0xf4}`, 0.85], [`${0xf4}<${0x49}`, 0.85], [`${0x48}<${0xf4}`, 0.3]]);
+  const result = analyse(FIVE, undefined, pairMiss);
+  const f4 = result.devices.find((device) => device.uid === 0xf4)!;
+  assert.equal(f4.verdict, 'pass', f4.reasons.join(' | '));
+  assert.ok(f4.quality!.heard! > 0.99 && f4.quality!.hears! > 0.99);
+  for (const uid of [0x14, 0x3e]) assert.equal(result.devices.find((device) => device.uid === uid)!.verdict, 'pass');
+  for (const uid of [0x48, 0x49]) assert.equal(result.devices.find((device) => device.uid === uid)!.verdict, 'fail');
+});
+
+test('a tag that hears badly but sends well overall is no reference, so its one-sided damage is not blamed on another', () => {
+  // The next live test as it came out. 48 hears almost nothing through its first and third antennas but sends well
+  // overall, except that its first antenna reached 3E far worse than anyone else. Counted as a tag that sends well, 48
+  // was one of the references 3E was measured against, and 3E failed for 48's fault. Only tags with nothing wrong with
+  // them, receiving or sending, are references now.
+  const hearing = new Map<number, readonly number[]>([
+    [0x14, GOOD], [0x3e, GOOD], [0xf4, GOOD], [0x48, [0, 1, 0.29]], [0x49, [0.38, 1, 0.66]],
+  ]);
+  const sending = new Map<number, readonly number[]>([
+    [0x14, GOOD], [0x3e, GOOD], [0xf4, GOOD], [0x48, GOOD], [0x49, [0.76, 0.96, 0.69]],
+  ]);
+  const pairMiss = new Map<string, number | readonly number[]>([
+    [`${0x3e}<${0x48}`, [0.7, 0, 0]], [`${0x49}<${0xf4}`, 0.85], [`${0xf4}<${0x49}`, 0.85],
+  ]);
+  const uids = [...hearing.keys()];
+  const receptions = receptionsFrom(hearing, 2400, undefined, pairMiss, sending);
+  const result = analyseRadio({ devices: uids.map((uid) => ({ uid, label: uid.toString(16), summary: liveSummary(uid, uids, receptions) })) });
+  for (const uid of [0x14, 0x3e, 0xf4]) {
+    const device = result.devices.find((d) => d.uid === uid)!;
+    assert.equal(device.verdict, 'pass', `0x${uid.toString(16)}: ${device.reasons.join(' | ')}`);
+  }
+  for (const uid of [0x48, 0x49]) assert.equal(result.devices.find((d) => d.uid === uid)!.verdict, 'fail');
 });
 
 test('without counts by sender, the check is exactly as before', () => {

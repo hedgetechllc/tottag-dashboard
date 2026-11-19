@@ -6531,10 +6531,10 @@
       },
       "aborts": 0,
       "quality": {
-       "hears": 0.9912666771909547,
-       "heard": 0.9926337916003387,
-       "hearsByAntenna": [0.9939227572530857,0.990265957976542,0.9896113163432367],
-       "heardByAntenna": [0.9909856508849706,0.9952348415643373,0.9916808823517085]
+       "hears": 0.9903426791277258,
+       "heard": 0.9899448137893095,
+       "hearsByAntenna": [0.9925233644859813,0.9901869158878505,0.9883177570093458],
+       "heardByAntenna": [0.9891611687087654,0.9919886899151744,0.9886845827439887]
       }
      },
      {
@@ -6578,17 +6578,17 @@
       },
       "aborts": 0,
       "quality": {
-       "hears": 0.9960336257114552,
-       "heard": 0.9967675143877498,
-       "hearsByAntenna": [0.9927763874570467,0.9997459996786616,0.995578489998657],
-       "heardByAntenna": [0.9959192696989575,0.9997459996786616,0.9946372737856299]
+       "hears": 0.9920560747663552,
+       "heard": 0.9910443313080467,
+       "hearsByAntenna": [0.9901869158878505,0.9939252336448599,0.9920560747663552],
+       "heardByAntenna": [0.9948162111215834,0.9901036757775683,0.9882131070249882]
       }
      },
      {
       "uid": 62,
       "label": "Blue",
       "verdict": "fail",
-      "reasons": ["Antenna 2: allowing for the other tags, 44% of its receives through it failed, against 1% and 1% through the others. That antenna, its switch, or its connection is suspect.","Antenna 2: allowing for the other tags, 36% of what it sent through it was not received, against 1% and 0% through the others. That antenna, its switch, or its connection is suspect.","Allowing for the tags it listened to, 15% of its receives failed, against 0% for the tag that hears best.","Allowing for the tags listening, 12% of what it sent was not received, against 0% for the tag heard best.","Ranged to a typical peer in 76% of rounds, against 96% for the other tags."],
+      "reasons": ["Antenna 2 failed 45% of its receives from the healthy tags, against 1% and 1% through the others. That antenna, its switch, or its connection is suspect.","The healthy tags failed to receive 36% of what it sent through antenna 2, against 1% and 1% through the others. That antenna, its switch, or its connection is suspect.","15% of its receives from the healthy tags failed, against 1% for the tag that hears best.","The healthy tags failed to receive 13% of what it sent, against 1% for the tag heard best.","Ranged to a typical peer in 76% of rounds, against 96% for the other tags."],
       "participation": 0.9941176470588236,
       "rxFailureRate": 0.15445134575569358,
       "antennaFailureRates": [0.009627329192546583,0.44503105590062114,0.008695652173913044],
@@ -6625,10 +6625,10 @@
       },
       "aborts": 0,
       "quality": {
-       "hears": 0.8473542259067365,
-       "heard": 0.878010834872648,
-       "hearsByAntenna": [0.9924217992040307,0.5559251343611276,0.993715744155051],
-       "heardByAntenna": [0.9948609143479684,0.6435931002713187,0.995578489998657]
+       "hears": 0.8455486542443064,
+       "heard": 0.8747657713928794,
+       "hearsByAntenna": [0.9903726708074534,0.5549689440993789,0.991304347826087],
+       "heardByAntenna": [0.9931292941911305,0.6396002498438476,0.9915677701436603]
       }
      },
      {
@@ -6672,10 +6672,10 @@
       },
       "aborts": 0,
       "quality": {
-       "hears": 0.9919566565746595,
-       "heard": 0.9956625749081605,
-       "hearsByAntenna": [0.9959192696989575,0.9905121115885959,0.9894385884364251],
-       "heardByAntenna": [0.9946993278834152,0.999118700747319,0.9931696960937472]
+       "hears": 0.9907188201216534,
+       "heard": 0.9921383647798742,
+       "hearsByAntenna": [0.9937619961612284,0.991362763915547,0.9870317002881844],
+       "heardByAntenna": [0.9924528301886792,0.9933962264150943,0.9905660377358491]
       }
      }
     ],

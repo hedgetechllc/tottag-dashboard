@@ -141,9 +141,10 @@ def feet_and_inches(millimetres):
    return f'{tenths / 10:.1f} in' if not feet else f'{feet} ft {tenths / 10:.1f} in'
 
 def radio_wording(text):
-   text = re.sub(r'(\d+) of the (\d+) selected devices (?:has|have) no log loaded, so', r'\1 of the \2 TotTags in the test sent no data, so', text)
-   text = text.replace('No positions entered, so distances are checked for consistency only. Enter where each device sat to check accuracy as well.',
-                       'No layout chosen, so distances are checked for consistency only. Choose the circle or line the TotTags sit in to check accuracy as well.')
+   # The shared radio check says "tag", and said "device" before; either way, a live test here has no logs and takes a layout
+   text = re.sub(r'(\d+) of the (\d+) selected (?:devices|tags) (?:has|have) no log loaded, so', r'\1 of the \2 TotTags in the test sent no data, so', text)
+   text = re.sub(r'No positions entered, so distances are checked for consistency only\. Enter where each (?:device|tag) sat to check accuracy as well\.',
+                 'No layout chosen, so distances are checked for consistency only. Choose the circle or line the TotTags sit in to check accuracy as well.', text)
    return re.sub(r'(\d+) mm', lambda match: f'{int(match.group(1)) / MM_PER_INCH:.1f} in', text)
 
 class DetailsMismatch(IOError):
@@ -1763,6 +1764,9 @@ class TotTagGUI(tk.Frame):
       size = ttk.Entry(settings, textvariable=self.radio_layout_size, width=5)
       size.pack(side=tk.LEFT)
       size.bind('<KeyRelease>', lambda _event: self._radio_show(view))
+      # The status on a line of its own: beside the buttons, it got only the room they left, and was cut off
+      self.radio_status = ttk.Label(body, font=('Helvetica', 12, 'bold'))
+      self.radio_status.pack(anchor=tk.W, pady=(2, 0))
       actions = tk.Frame(body)
       actions.pack(anchor=tk.W, fill=tk.X, pady=(2, 4))
       self.radio_new_button = ttk.Button(actions, text='New Test', command=self._radio_new)
@@ -1771,8 +1775,6 @@ class TotTagGUI(tk.Frame):
       self.radio_stop_button.pack(side=tk.RIGHT, padx=4)
       self.radio_start_button = ttk.Button(actions, text='Start Test', command=self._radio_begin)
       self.radio_start_button.pack(side=tk.RIGHT)
-      self.radio_status = ttk.Label(actions, font=('Helvetica', 12, 'bold'))
-      self.radio_status.pack(side=tk.LEFT)
 
       # One row per device, then how often each ranged to each other, then everything worth reading in words. The
       # columns start narrow enough to fit beside the actions bar and widen with the window.
@@ -1946,6 +1948,18 @@ class TotTagGUI(tk.Frame):
             reasons = [messages.get(device['uid']) or 'Sent no data during the test.'] if device['verdict'] == 'missing' else device['reasons']
             if reasons:
                lines.append(f"{device['label']} ({RADIO_VERDICTS[device['verdict']]}):\n" + '\n'.join(f'   - {radio_wording(reason)}' for reason in reasons))
+         # Who missed whom, where the TotTags count their receives by sender: the pairs that decoded too little
+         weak = []
+         for reception in result.get('receptions', []):
+            ok, failed = sum(reception['rx_ok']), sum(reception['rx_failed'])
+            by_antenna = [good / (good + bad) if good + bad else None for good, bad in zip(reception['rx_ok'], reception['rx_failed'])]
+            if ok + failed and (ok / (ok + failed) < 0.95 or any(share is not None and share < 0.9 for share in by_antenna)):
+               weak.append((ok / (ok + failed), f"   {labels.get(reception['receiver'], reception['receiver'])} from "
+                                                f"{labels.get(reception['sender'], reception['sender'])}: {radio_check.format_percent(ok / (ok + failed))} "
+                                                f"({' / '.join(radio_check.format_percent(share) for share in by_antenna)})"))
+         if weak:
+            lines.append('Receives under 95%, as how often the first TotTag decoded what the second sent (then through antennas 1 / 2 / 3):\n'
+                         + '\n'.join(line for _, line in sorted(weak)))
          distances = []
          for link in result['links']:
             if link['median_mm'] is None:

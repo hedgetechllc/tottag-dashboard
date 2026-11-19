@@ -107,9 +107,10 @@ def _solve_biases(uids, residuals):
 # A receive fails as much for a sender transmitting weakly as for a receiver hearing poorly, and every device uses the
 # same antenna at the same time, so a device with a damaged antenna raises every other device's failures on that
 # antenna too. Counted by sender, the two can be told apart: the chance that receiver r decodes sender t is modelled
-# as hears(r) x heard(t), both fitted from every pair at once by iterative proportional fitting. Only their product is
-# fixed by the data, so each is reported against the best partner. A port of separateReceptions() in the web tool's
-# radioCheck.ts, step for step, so that the two reach the same figures.
+# as hears(r) x heard(t), both fitted from every pair at once by iterative proportional fitting. The fit ranks the
+# devices, but a pairing that fails for its own reasons leaks into both devices' factors, so it is only the first pass:
+# each device is then measured directly against the devices with nothing wrong with them. A port of
+# separateReceptions() in the web tool's radioCheck.ts, step for step, so that the two reach the same figures.
 
 def _fit_qualities(uids, cells):
    """hears and heard for every device, from the cells of one antenna or of all of them together."""
@@ -171,15 +172,66 @@ def separate_receptions(uids, receptions):
       judged = [value for value in values if value is not None]
       return sum(judged) / len(judged) if judged else fallback
 
-   qualities = {}
+   fitted = {}
    for uid in uids:
       hears_by_antenna = [fit[uid]['hears'] for fit in per_antenna]
       heard_by_antenna = [fit[uid]['heard'] for fit in per_antenna]
-      qualities[uid] = {
+      fitted[uid] = {
          'hears': mean(hears_by_antenna, pooled[uid]['hears']), 'heard': mean(heard_by_antenna, pooled[uid]['heard']),
          'hears_by_antenna': hears_by_antenna, 'heard_by_antenna': heard_by_antenna,
       }
+
+   # Second pass: each device measured directly against the devices with nothing wrong with them at all, neither
+   # receiving nor sending, through any antenna. A damaged antenna usually hurts both ways, and some partners more than
+   # others, so a device suspect on either side is no reference for anyone. Measuring can clear a device the fit
+   # doubted or flag one it trusted, so it is repeated against the devices it leaves clean until that set stops changing.
+   def share(cells):
+      total = sum(cell['total'] for cell in cells)
+      return sum(cell['ok'] for cell in cells) / total if total >= ANTENNA_MIN_SAMPLES else None
+
+   pooled_cells = cells_for(None)
+   antenna_cells = [cells_for(antenna) for antenna in range(antennas)]
+
+   def measure(references):
+      measured = {}
+      for uid in uids:
+         fit = fitted[uid]
+         heard_from = lambda cells: [cell for cell in cells if cell['receiver'] == uid and cell['sender'] in references]
+         heard_by = lambda cells: [cell for cell in cells if cell['sender'] == uid and cell['receiver'] in references]
+         # A device with no clean partner to be measured against keeps what the fit made of it
+         hearing = len(heard_from(pooled_cells)) > 0
+         heard = len(heard_by(pooled_cells)) > 0
+         hears_by_antenna = [share(heard_from(cells)) for cells in antenna_cells] if hearing else fit['hears_by_antenna']
+         heard_by_antenna = [share(heard_by(cells)) for cells in antenna_cells] if heard else fit['heard_by_antenna']
+         measured[uid] = {
+            'hears': mean(hears_by_antenna, share(heard_from(pooled_cells))) if hearing else fit['hears'],
+            'heard': mean(heard_by_antenna, share(heard_by(pooled_cells))) if heard else fit['heard'],
+            'hears_by_antenna': hears_by_antenna, 'heard_by_antenna': heard_by_antenna,
+         }
+      return measured
+
+   def clean(qualities):
+      best = lambda key: max([0] + [q[key] for q in qualities.values() if q[key] is not None])
+      best_hears, best_heard = best('hears'), best('heard')
+      return {uid for uid in uids if _judge_quality(qualities[uid], best_hears, best_heard) == ([], [])}
+
+   qualities = fitted
+   references = clean(fitted)
+   for _ in range(10):
+      if not references:
+         break
+      qualities = measure(references)
+      following = clean(qualities)
+      settled = following == references
+      references = following
+      if settled:
+         break
    return qualities
+
+
+def _listed(items):
+   """'a', 'a and b', 'a, b and c'."""
+   return ' and '.join(items) if len(items) <= 2 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
 def _judge_quality(quality, best_hears, best_heard):
@@ -194,29 +246,37 @@ def _judge_quality(quality, best_hears, best_heard):
 
    if quality['hears'] is not None:
       judge(best_hears - quality['hears'],
-            f"Allowing for the tags it listened to, {_percent(1 - quality['hears'])} of its receives failed, against {_percent(1 - best_hears)} for the tag that hears best.",
+            f"{_percent(1 - quality['hears'])} of its receives from the healthy tags failed, against {_percent(1 - best_hears)} for the tag that hears best.",
             'A weak receiver, a damaged antenna or connection, or something nearby transmitting over it.',
             RX_FAILURE_FAIL_EXCESS, RX_FAILURE_CHECK_EXCESS)
    if quality['heard'] is not None:
       judge(best_heard - quality['heard'],
-            f"Allowing for the tags listening, {_percent(1 - quality['heard'])} of what it sent was not received, against {_percent(1 - best_heard)} for the tag heard best.",
+            f"The healthy tags failed to receive {_percent(1 - quality['heard'])} of what it sent, against {_percent(1 - best_heard)} for the tag heard best.",
             'A weak transmitter, or a damaged antenna or connection.',
             RX_FAILURE_FAIL_EXCESS, RX_FAILURE_CHECK_EXCESS)
-   # One antenna worse than its others, receiving or sending: the same damage shows both ways
-   for by_antenna, doing in ((quality['hears_by_antenna'], 'of its receives through it failed'),
-                             (quality['heard_by_antenna'], 'of what it sent through it was not received')):
+   # Every antenna well behind its best, receiving or sending: the same damage shows both ways, and two can be damaged
+   for receiving in (True, False):
+      by_antenna = quality['hears_by_antenna'] if receiving else quality['heard_by_antenna']
       misses = [(antenna, 1 - share) for antenna, share in enumerate(by_antenna) if share is not None]
       if len(misses) < 2:
          continue
-      worst = best = misses[0]
+      best = misses[0]
       for entry in misses[1:]:
-         if entry[1] > worst[1]: worst = entry
          if entry[1] < best[1]: best = entry
-      others = ' and '.join(_percent(miss) for antenna, miss in misses if antenna != worst[0])
-      judge(worst[1] - best[1],
-            f'Antenna {worst[0] + 1}: allowing for the other tags, {_percent(worst[1])} {doing}, against {others} through the others.',
-            'That antenna, its switch, or its connection is suspect.',
-            ANTENNA_FAIL_SPREAD, ANTENNA_CHECK_SPREAD)
+      behind = [entry for entry in misses if entry[1] - best[1] > ANTENNA_CHECK_SPREAD]
+      if not behind:
+         continue
+      rest = [entry for entry in misses if entry not in behind]
+      which = f"{'antenna' if len(behind) == 1 else 'antennas'} {_listed([str(entry[0] + 1) for entry in behind])}"
+      failed = _listed([_percent(entry[1]) for entry in behind])
+      against = (f'{_percent(rest[0][1])} through antenna {rest[0][0] + 1}' if len(rest) == 1
+                 else f"{_listed([_percent(entry[1]) for entry in rest])} through the others")
+      message = (f'{which[0].upper()}{which[1:]} failed {failed} of its receives from the healthy tags, against {against}.' if receiving
+                 else f'The healthy tags failed to receive {failed} of what it sent through {which}, against {against}.')
+      if any(entry[1] - best[1] > ANTENNA_FAIL_SPREAD for entry in behind):
+         fails.append(f"{message} {'That antenna, its switch, or its connection is suspect.' if len(behind) == 1 else 'Those antennas, their switch, or their connections are suspect.'}")
+      else:
+         checks.append(message)
    return fails, checks
 
 
